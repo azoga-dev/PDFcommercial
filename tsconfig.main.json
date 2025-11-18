@@ -3,11 +3,11 @@
   "compilerOptions": {
     "module": "commonjs",
     "rootDir": "./src",
-    "outDir": "./dist/main"
+    "outDir": "./dist"
   },
   "include": [
     "src/main/main.ts",
-    "src/main/**/*",
+    "src/main/**/*.ts",
     "src/preload.ts",
     "src/types/**/*.d.ts"
   ],

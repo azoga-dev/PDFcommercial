@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import * as path from 'path';
 import fs from 'fs-extra';
 import { promises as fsp } from 'fs';
@@ -22,6 +22,23 @@ export function getCurrentThemeIsDark() {
   return currentThemeIsDark;
 }
 
+function getPreloadPath() {
+  // __dirname = dist/main/windows
+  return path.join(__dirname, '..', '..', 'preload.js');
+}
+
+async function loadLogWindowContent(win: BrowserWindow) {
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const isDev = !app.isPackaged || !!devServerUrl;
+
+  if (isDev && devServerUrl) {
+    await win.loadURL(`${devServerUrl}/logWindow.html`);
+  } else {
+    const htmlPath = path.join(__dirname, '..', '..', 'renderer', 'logWindow.html');
+    await win.loadFile(htmlPath);
+  }
+}
+
 export function createLogWindow() {
   if (logWindow && !logWindow.isDestroyed()) return logWindow;
 
@@ -30,21 +47,17 @@ export function createLogWindow() {
     height: 600,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: getPreloadPath(),
       nodeIntegration: false,
       contextIsolation: true,
     },
     title: 'Лог приложения',
   });
 
-  const htmlPath = path.join(__dirname, 'logWindow.html');
-
-  logWindow
-    .loadFile(htmlPath)
-    .catch((err) => {
-      console.error('Ошибка загрузки logWindow.html:', err);
-      appendLog(`[ERROR] Ошибка загрузки logWindow.html: ${(err as Error).message}`);
-    });
+  void loadLogWindowContent(logWindow).catch((err) => {
+    console.error('Ошибка загрузки окна логов:', err);
+    appendLog(`[ERROR] Ошибка загрузки окна логов: ${(err as Error).message}`);
+  });
 
   logWindow.on('closed', () => {
     logWindow = null;
@@ -58,8 +71,11 @@ export function createLogWindow() {
 
       // 2) Найти styles.css (dist предпочтительно)
       const candidates = [
-        path.join(__dirname, 'styles.css'),
+        // если когда-нибудь будешь класть styles.css рядом с main
+        path.join(__dirname, '..', '..', 'styles.css'),
+        // старый вариант из dist корня
         path.join(process.cwd(), 'dist', 'styles.css'),
+        // текущий рабочий вариант — исходный styles.css
         path.join(process.cwd(), 'src', 'styles.css'),
       ];
 
@@ -109,10 +125,7 @@ export function createLogWindow() {
         appendLog(`[WARN] ${warn}`);
       }
 
-      // 3) Синхронизация CSS‑переменных — отключена для стабильности.
-      appendLog('[DEBUG] CSS var sync skipped (using shared styles.css + data-theme)');
-
-      // 4) Диагностика и fallback
+      // 3) Диагностика и fallback
       const diag = await logWindow!.webContents.executeJavaScript(
         `
         (function(){
