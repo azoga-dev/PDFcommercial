@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "rootDir": "./src",
+    "outDir": "./dist/renderer",
+    "jsx": "preserve" // на будущее, если вдруг появится JSX, сейчас не мешает
+  },
+  "include": [
+    "src/renderer/**/*",
+    "src/logWindowRenderer.ts",
+    "src/types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/main.ts",
+    "src/main/**/*",
+    "src/preload.ts"
+  ]
+}

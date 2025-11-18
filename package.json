@@ -5,14 +5,18 @@
   "description": "Application for working with PDF files",
   "main": "dist/main/main.js",
   "scripts": {
-    "start": "electron .",
-    "build": "tsc",
+    "dev:vite": "vite",
+    "dev": "concurrently \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:electron": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
     "build:tailwind": "npx tailwindcss -i ./src/input.css -o ./src/styles.css",
-    "package": "npm run build && npm run build:tailwind",
-    "make": "npm run package && npx electron-builder --win --x64",
-    "publish": "npm run package && npx electron-builder --win --x64 --publish=always",
-    "copy-assets": "node copy-assets.js",
-    "watch-assets": "nodemon --watch src/index.html --watch src/styles.css --exec \"npm run copy-assets\""
+    "build": "npm run build:main && npm run build:renderer && npm run build:tailwind",
+
+    "start": "electron .",
+    "package": "npm run build && npx electron-builder --win --x64",
+    "publish": "npm run build && npx electron-builder --win --x64 --publish=always"
   },
   "keywords": [],
   "author": "azoga99",
@@ -64,9 +68,9 @@
       {
         "from": "vendor/ghostscript/",
         "to": "ghostscript",
-        "filter": [
-          "**/*"
-        ]
+          "filter": [
+            "**/*"
+          ]
       }
     ],
     "win": {

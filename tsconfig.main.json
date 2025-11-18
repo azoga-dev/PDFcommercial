@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "rootDir": "./src",
+    "outDir": "./dist/main"
+  },
+  "include": [
+    "src/main.ts",
+    "src/main/**/*",
+    "src/preload.ts",
+    "src/types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/renderer/**/*",
+    "src/logWindowRenderer.ts"
+  ]
+}
