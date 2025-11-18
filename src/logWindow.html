@@ -31,10 +31,10 @@
     /* Основной ряд контролов: все элементы на одной линии */
     .controls {
       display:flex;
-      align-items:center;       /* выровнять по центру по вертикали */
+      align-items:center;
       gap:12px;
       width:100%;
-      flex-wrap:nowrap;         /* не переносить на новую строку, пока позволяет ширина */
+      flex-wrap:nowrap;
     }
 
     .controls-left { display:flex; align-items:center; gap:8px; }
@@ -49,10 +49,9 @@
 
     .search { padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--panel); min-width:220px; max-width:420px; width:28ch; box-sizing:border-box; }
 
-    .log { flex:1; width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-family:monospace; font-size:13px; resize:vertical; overflow:auto; white-space:pre-wrap; }
+    .log { flex:1; width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-family:monospace; font-size:13px; resize:vertical; overflow:auto; white-space:pre; }
     .small { color:var(--muted); font-size:12px; }
 
-    /* Небольшая адаптивность: на узких экранах элементы начнут переноситься */
     @media (max-width: 760px) {
       .controls { flex-wrap:wrap; gap:8px; }
       .controls-right { margin-left:0; width:100%; justify-content:flex-start; }
@@ -80,100 +79,12 @@
     </div>
 
     <div id="log-area" class="log" aria-label="Лог приложения"></div>
-    <div class="small">Лог синхронизируется в реальном времени. Фильтр применяет отображение локально.</div>
+    <div class="small">
+      Лог синхронизируется в реальном времени. Фильтр применяется только к отображению.
+    </div>
   </div>
 
-  <script>
-    // Локальная логика фильтрации/отображения в окне логов (без изменений по функционалу)
-    const logArea = document.getElementById('log-area');
-    const btnExport = document.getElementById('btn-export');
-    const btnClear = document.getElementById('btn-clear');
-    const chkInfo = document.getElementById('chk-info');
-    const chkWarning = document.getElementById('chk-warning');
-    const chkError = document.getElementById('chk-error');
-    const search = document.getElementById('search');
-
-    const lines = [];
-
-    function formatLineForDisplay(line) { return line; }
-
-    function applyFilterAndRender() {
-      const showInfo = chkInfo.checked;
-      const showWarn = chkWarning.checked;
-      const showErr = chkError.checked;
-      const q = (search.value || '').toLowerCase();
-      const filtered = lines.filter(l => {
-        const levelMatch = l.match(/\]\s*\[?([A-ZА-Яa-z]+)\]?/);
-        let level = levelMatch ? levelMatch[1].toLowerCase() : 'info';
-        if (level === 'warning') level = 'warn';
-        if (level === 'warn' && !showWarn) return false;
-        if (level === 'info' && !showInfo) return false;
-        if (level === 'error' && !showErr) return false;
-        if (q && !l.toLowerCase().includes(q)) return false;
-        return true;
-      });
-      logArea.innerText = filtered.map(formatLineForDisplay).join('\n');
-      logArea.scrollTop = logArea.scrollHeight;
-    }
-
-    function appendLine(line) {
-      lines.push(line);
-      const showInfo = chkInfo.checked;
-      const showWarn = chkWarning.checked;
-      const showErr = chkError.checked;
-      const q = (search.value || '').toLowerCase();
-      const levelMatch = line.match(/\]\s*\[?([A-ZА-Яa-z]+)\]?/);
-      let level = levelMatch ? levelMatch[1].toLowerCase() : 'info';
-      if (level === 'warning') level = 'warn';
-      const passesLevel = (level === 'info' && showInfo) || (level === 'warn' && showWarn) || (level === 'error' && showErr);
-      const passesQuery = !q || line.toLowerCase().includes(q);
-      if (passesLevel && passesQuery) {
-        const prev = logArea.innerText;
-        logArea.innerText = prev ? prev + '\n' + line : line;
-        logArea.scrollTop = logArea.scrollHeight;
-      }
-    }
-
-    window.electronAPI.onLogContent((_e, content) => {
-      lines.length = 0;
-      if (content) {
-        const arr = content.split(/\r?\n/).filter(Boolean);
-        arr.forEach(l => lines.push(l));
-      }
-      applyFilterAndRender();
-    });
-
-    window.electronAPI.onLogAppend((_e, line) => { lines.push(line); appendLine(line); });
-
-    window.electronAPI.onMergeComplete((_e, summary) => {
-      appendLine('\n=== Merge complete ===');
-      appendLine(JSON.stringify(summary, null, 2));
-      appendLine('======================\n');
-    });
-
-    // Синхронизация темы: main шлёт 'set-theme', применяем data-theme
-    window.electronAPI.onSetTheme((_e, isDark) => {
-      try {
-        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-      } catch { /* ignore */ }
-    });
-
-    // UI handlers
-    chkInfo.addEventListener('change', applyFilterAndRender);
-    chkWarning.addEventListener('change', applyFilterAndRender);
-    chkError.addEventListener('change', applyFilterAndRender);
-    search.addEventListener('input', applyFilterAndRender);
-
-    btnExport.addEventListener('click', async () => {
-      btnExport.disabled = true;
-      try {
-        const res = await window.electronAPI.exportLog();
-        if (res && res.ok) alert('Лог сохранён: ' + res.path);
-        else alert('Ошибка при сохранении лога' + (res?.error ? (': ' + res.error) : ''));
-      } finally { btnExport.disabled = false; }
-    });
-
-    btnClear.addEventListener('click', () => { logArea.innerText = ''; });
-  </script>
+  <!-- Вся логика окна логов теперь в TypeScript-файле logWindowRenderer.ts -->
+  <script src="./logWindowRenderer.js"></script>
 </body>
 </html>

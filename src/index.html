@@ -6,7 +6,7 @@
     <title>PDF Мультитул</title>
     <link href="./styles.css" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+    <!-- <style>
         /* Базовые стили для светлой/темной темы */
         :root {
             --bg-color: #f9fafb; /* bg-gray-50 */
@@ -881,7 +881,7 @@
         display:inline-block; min-width:28px; padding:2px 8px; border-radius:12px;
         background:var(--sidebar-border); color:var(--text-color); font-size:12px; text-align:center;
     }
-    </style>
+    </style> -->
 </head>
 <body>
     <div class="sidebar">
@@ -894,39 +894,7 @@
         <button id="nav-mode-compress" class="nav-button">
             Сжатие PDF
         </button>
-
-        <button id="nav-mode3" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode4" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode5" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode6" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode7" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode8" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode9" class="nav-button">
-            Режим 2
-        </button>
-
-        <button id="nav-mode10" class="nav-button">
-            Режим 2
-        </button>
-
+      
         <!-- Футер сайдбара с кнопкой настроек -->
          <div class="sidebar-footer">
             <button id="nav-settings" class="settings-button">
@@ -1064,8 +1032,8 @@
             </div>
         </div>
 
-            <!-- Содержимое вкладки Настройки -->
-            <div id="settings-content" class="settings-section" style="display: none;">
+        <!-- Содержимое вкладки Настройки -->
+        <div id="settings-content" class="settings-section" style="display: none;">
                 <div class="content-header">
                     <i data-lucide="settings" class="w-5 h-5"></i>
                     Настройки
@@ -1153,10 +1121,10 @@
                     </label>
                     </div>
                 </div>
-            </div>
+        </div>
 
-            <!-- Обновлённый фрагмент compress-content: все контролы сжатиия обёрнуты в #compress-controls -->
-    <div id="compress-content" class="content-section" style="display: none;">
+        <!-- Обновлённый фрагмент compress-content: все контролы сжатиия обёрнуты в #compress-controls -->
+        <div id="compress-content" class="content-section" style="display: none;">
     <div class="content-header">Сжатие PDF</div>
 
     <div id="compress-controls">
@@ -1242,10 +1210,10 @@
         <button id="btn-compress-clear" class="btn btn-outline" title="Очистить настройки сжатия">Очистить</button>
         </div>
     </div>
-    </div>
+        </div>
 
-    <!-- Всплывающее уведомление об обновлении (по умолчанию скрыто) -->
-    <div id="update-notification" class="update-notification hidden">
+        <!-- Всплывающее уведомление об обновлении (по умолчанию скрыто) -->
+        <div id="update-notification" class="update-notification hidden">
   <div class="update-notification-content">
     <p id="update-notification-text" class="update-notification-text">Доступна новая версия. Проверьте наличие обновлений в настройках приложения.</p>
     <div class="update-notification-actions">
@@ -1254,22 +1222,22 @@
       <button id="btn-dismiss-popup" class="btn btn-outline btn-sm">Закрыть</button>
     </div>
   </div>
-</div>
+    </div>
 
-<script type="module">
-  import * as pdfjsLib from './pdf.min.mjs';
+    <script type="module">
+    import * as pdfjsLib from './pdf.min.mjs';
 
-  // Назначаем глобально, чтобы renderer.ts мог взять window.pdfjsLib
-  window.pdfjsLib = pdfjsLib;
+    // Назначаем глобально, чтобы renderer.ts мог взять window.pdfjsLib
+    window.pdfjsLib = pdfjsLib;
 
-  // Указываем путь к воркеру (ES module)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
+    // Указываем путь к воркеру (ES module)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
 
-  console.debug('[pdfjs] module loaded, workerSrc:', pdfjsLib.GlobalWorkerOptions.workerSrc);
-</script>
-<script>
-    lucide.createIcons();
-</script>
-<script src="./renderer.js"></script>
+    console.debug('[pdfjs] module loaded, workerSrc:', pdfjsLib.GlobalWorkerOptions.workerSrc);
+    </script>
+    <script>
+        lucide.createIcons();
+    </script>
+    <script src="./renderer.js"></script>
 </body>
 </html>
