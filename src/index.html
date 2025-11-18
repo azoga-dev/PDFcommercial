@@ -6,7 +6,7 @@
     <title>PDF Мультитул</title>
     <link href="./styles.css" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- <style>
+    <style>
         /* Базовые стили для светлой/темной темы */
         :root {
             --bg-color: #f9fafb; /* bg-gray-50 */
@@ -881,7 +881,7 @@
         display:inline-block; min-width:28px; padding:2px 8px; border-radius:12px;
         background:var(--sidebar-border); color:var(--text-color); font-size:12px; text-align:center;
     }
-    </style> -->
+    </style>
 </head>
 <body>
     <div class="sidebar">
@@ -900,6 +900,10 @@
             <button id="nav-settings" class="settings-button">
                 <i data-lucide="settings" class="w-4 h-4"></i>
                 <span>Настройки</span>
+            </button>
+
+            <button id="btn-open-log" class="settings-button" style="margin-top: 0.5rem;">
+                <span>Открыть лог</span>
             </button>
             <div class="text-xs text-gray-500 text-center mt-1">version 1.0.2</div>
         </div>
@@ -1224,17 +1228,6 @@
   </div>
     </div>
 
-    <!-- <script type="module">
-    import * as pdfjsLib from './pdf.min.mjs';
-
-    // Назначаем глобально, чтобы renderer.ts мог взять window.pdfjsLib
-    window.pdfjsLib = pdfjsLib;
-
-    // Указываем путь к воркеру (ES module)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
-
-    console.debug('[pdfjs] module loaded, workerSrc:', pdfjsLib.GlobalWorkerOptions.workerSrc);
-    </script> -->
     <script>
         lucide.createIcons();
     </script>

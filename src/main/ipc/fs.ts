@@ -87,6 +87,16 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
     }
   });
 
+  // Прочитать файл в буфер (для превью PDF / миниатюр)
+  ipcMain.handle('fs-read-file-buffer', async (_e, filePath: string) => {
+    try {
+      const buf = await fsp.readFile(filePath);
+      return buf;
+    } catch {
+      return null;
+    }
+  });
+
   // Подсчитать количество PDF-файлов в папке (рекурсивно)
   ipcMain.handle(
     'count-pdf-files-in-folder',

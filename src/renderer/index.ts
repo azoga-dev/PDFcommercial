@@ -13,6 +13,11 @@ import { CompressState } from './state/compressState';
 import { LogState } from './state/logState';
 import { getMainUiRefs } from '../types/ui';
 
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/build/pdf.worker.mjs';
+
+(window as any).pdfjsLib = pdfjsLib;
+
 type ElectronAPI = Window['electronAPI'];
 
 (() => {
@@ -123,6 +128,15 @@ type ElectronAPI = Window['electronAPI'];
 
       showPopup('Настройки очищены', 4000);
       log('Настройки очищены', 'warning');
+    }
+
+    const btnOpenLog = document.getElementById('btn-open-log') as HTMLButtonElement | null;
+    if (btnOpenLog) {
+      btnOpenLog.addEventListener('click', () => {
+        electronAPI.openLogWindow().catch(() => {
+          // игнорируем ошибку, максимум можно вывести popup
+        });
+      });
     }
 
     // Тема
