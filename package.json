@@ -3,7 +3,7 @@
   "productName": "PDFmanager",
   "version": "1.0.2",
   "description": "Application for working with PDF files",
-  "main": "./dist/main.js",
+  "main": "dist/main/main.js",
   "scripts": {
     "start": "electron .",
     "build": "tsc",
