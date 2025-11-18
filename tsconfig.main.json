@@ -6,7 +6,7 @@
     "outDir": "./dist/main"
   },
   "include": [
-    "src/main.ts",
+    "src/main/main.ts",
     "src/main/**/*",
     "src/preload.ts",
     "src/types/**/*.d.ts"
