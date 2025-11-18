@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
   root: 'src',
@@ -8,8 +9,9 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: 'index.html',
-        logWindow: 'logWindow.html',
+        // Абсолютные пути к HTML, чтобы Rollup точно их нашёл
+        main: resolve(__dirname, 'src/index.html'),
+        logWindow: resolve(__dirname, 'src/logWindow.html'),
       },
     },
   },
