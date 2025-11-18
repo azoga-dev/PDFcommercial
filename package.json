@@ -8,12 +8,10 @@
     "dev:vite": "vite",
     "dev": "concurrently \"npm:dev:vite\" \"npm:dev:electron\"",
     "dev:electron": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:tailwind": "npx tailwindcss -i ./src/input.css -o ./src/styles.css",
     "build": "npm run build:main && npm run build:renderer && npm run build:tailwind",
-
     "start": "electron .",
     "package": "npm run build && npx electron-builder --win --x64",
     "publish": "npm run build && npx electron-builder --win --x64 --publish=always"
@@ -24,6 +22,8 @@
   "devDependencies": {
     "@types/node": "^20.19.24",
     "autoprefixer": "^10.4.19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3",
     "electron-rebuild": "^3.2.9",
@@ -31,7 +31,8 @@
     "postcss": "^8.4.39",
     "shelljs": "^0.10.0",
     "tailwindcss": "^3.4.4",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vite": "^7.2.2"
   },
   "dependencies": {
     "argon2": "^0.44.0",
@@ -68,9 +69,9 @@
       {
         "from": "vendor/ghostscript/",
         "to": "ghostscript",
-          "filter": [
-            "**/*"
-          ]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
