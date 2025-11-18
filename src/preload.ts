@@ -9,19 +9,19 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   // ===== Общие / FS / настройки =====
 
-  /** Открыть диалог выбора папки. */
+  /** Открыть диалог выбора папки, вернуть путь или null если отменено. */
   selectFolder: (defaultPath?: string) =>
     ipcRenderer.invoke('select-folder', defaultPath),
 
-  /** Получить basename пути. */
+  /** Получить имя файла/папки без пути. */
   basename: (fullPath: string) =>
     ipcRenderer.sendSync('path-basename', fullPath),
 
-  /** Загрузить настройки из main. */
+  /** Загрузить сохранённые настройки приложения. */
   loadSettings: () =>
     ipcRenderer.invoke('load-settings'),
 
-  /** Сохранить настройки в main. */
+  /** Сохранить настройки приложения. Возвращает true при успехе. */
   saveSettings: (settings: any) =>
     ipcRenderer.invoke('save-settings', settings),
 
@@ -37,34 +37,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   countPdfFilesInFolder: (folderPath: string) =>
     ipcRenderer.invoke('count-pdf-files-in-folder', folderPath),
 
-  /** Открыть папку в системном проводнике. */
+  /** Открыть папку в системном файловом менеджере. */
   openFolder: (folderPath: string) =>
     ipcRenderer.invoke('open-folder', folderPath),
 
-  /** Прочитать файл в буфер (для превью PDF). */
+  /** Прочитать файл целиком в виде массива байт (используется для превью PDF). */
   readFileBuffer: async (filePath: string) => {
-    // В IPC возвращаем просто Buffer, здесь приводим к формату из global.d.ts
     try {
-      const buf: Uint8Array | Buffer | null = await ipcRenderer.invoke('fs-read-file-buffer', filePath);
+      const buf: Uint8Array | Buffer | null = await ipcRenderer.invoke(
+        'fs-read-file-buffer',
+        filePath,
+      );
       if (!buf) return { ok: false, error: 'empty' };
       const arr = Array.from(buf as Uint8Array);
       return { ok: true, data: arr };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }
-  },
-
-  // ===== Тема =====
-
-  /** Установить тему (тёмная/светлая). */
-  setTheme: (isDark: boolean) =>
-    ipcRenderer.send('theme-changed', isDark),
-
-  /** Подписаться на изменение темы из main-процесса. */
-  onSetTheme: (cb: (event: any, isDark: boolean) => void) => {
-    const handler = (_event: any, isDark: boolean) => cb(_event, isDark);
-    ipcRenderer.on('set-theme', handler);
-    return () => ipcRenderer.removeListener('set-theme', handler);
   },
 
   // ===== Merge (объединение PDF) =====
@@ -112,7 +101,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('merge-unmatched', handler);
   },
 
-  // ===== Compress (сжатие PDF) =====
+  // ===== Сжатие PDF =====
 
   /** Сжать PDF-файлы в папке. */
   compressPDFs: (options: {
@@ -162,6 +151,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event: any, payload: any) => cb(_event, payload);
     ipcRenderer.on('compress-complete', handler);
     return () => ipcRenderer.removeListener('compress-complete', handler);
+  },
+
+  // ===== Тема =====
+
+  /** Установить тему (true — тёмная, false — светлая). */
+  setTheme: (isDark: boolean) =>
+    ipcRenderer.send('theme-changed', isDark),
+
+  /** Подписаться на изменение темы из main-процесса. */
+  onSetTheme: (cb: (event: any, isDark: boolean) => void) => {
+    const handler = (_event: any, isDark: boolean) => cb(_event, isDark);
+    ipcRenderer.on('set-theme', handler);
+    return () => ipcRenderer.removeListener('set-theme', handler);
   },
 
   // ===== Обновления =====
@@ -223,7 +225,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== Логирование / окно лога =====
 
-  /** Добавить строку в лог. */
+  /** Добавить строку в лог (и, возможно, отправить main-процессу). */
   appendLog: (line: string) =>
     ipcRenderer.send('append-log', line),
 

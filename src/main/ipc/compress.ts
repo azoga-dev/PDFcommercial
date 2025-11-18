@@ -12,6 +12,65 @@ import { findGhostscript, qualityToPdfSettings } from '../services/ghostscript';
 const execFileAsync = promisify(execFile);
 let compressCancelRequested = false;
 
+// Максимальное количество одновременно обрабатываемых файлов.
+// Можно сделать настраиваемым через настройки, сейчас — константа.
+const MAX_PARALLEL = 3;
+
+/**
+ * Выполнить функцию для списка pdf-файлов параллельно, но не более maxParallel одновременно.
+ * Обеспечивает:
+ * - уважение cancel-флага compressCancelRequested;
+ * - последовательную отправку прогресса (index) и накопление результата.
+ */
+async function runInParallel<T>(
+  pdfs: string[],
+  worker: (fullPath: string, index: number) => Promise<T>,
+): Promise<{ results: T[] }> {
+  const results: T[] = [];
+  let currentIndex = 0; // 1-based index для прогресса
+  let active = 0;
+  let resolveAll: (() => void) | null = null;
+
+  const allDone = new Promise<void>((resolve) => {
+    resolveAll = resolve;
+  });
+
+  async function spawnNext() {
+    if (compressCancelRequested) {
+      // если уже запрошена отмена — больше ничего не запускаем
+      if (active === 0 && resolveAll) resolveAll();
+      return;
+    }
+    const idx = pdfs.length - (pdfs.length - currentIndex);
+    if (currentIndex >= pdfs.length) {
+      if (active === 0 && resolveAll) resolveAll();
+      return;
+    }
+    const myIndex = ++currentIndex;
+    const fullPath = pdfs[myIndex - 1];
+    active++;
+    try {
+      const res = await worker(fullPath, myIndex);
+      results.push(res);
+    } finally {
+      active--;
+      if (currentIndex < pdfs.length && !compressCancelRequested) {
+        void spawnNext();
+      } else if (active === 0 && resolveAll) {
+        resolveAll();
+      }
+    }
+  }
+
+  const initialWorkers = Math.min(MAX_PARALLEL, pdfs.length);
+  for (let i = 0; i < initialWorkers; i++) {
+    void spawnNext();
+  }
+
+  await allDone;
+  return { results };
+}
+
 export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
   // Отмена сжатия
   ipcMain.handle('cancel-compress', async () => {
@@ -57,6 +116,8 @@ export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
         if (!outputFolder) throw new Error('Не указана папка вывода');
         await fsExtra.ensureDir(outputFolder);
 
+        compressCancelRequested = false;
+
         const pdfs: string[] = [];
         for (const f of files) {
           try {
@@ -75,9 +136,11 @@ export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
         if (gsCmd2) result.used = `ghostscript (${gsCmd2})`;
         else result.used = 'pdf-lib(fallback)';
 
-        let index = 0;
-        for (const fullPath of pdfs) {
-          index++;
+        // Параллельная обработка pdfs
+        await runInParallel(pdfs, async (fullPath, index) => {
+          if (compressCancelRequested) {
+            return;
+          }
           const fname = path.basename(fullPath);
           const outP = path.join(outputFolder, fname);
           const fileInfo: any = { name: fname, ok: false };
@@ -178,7 +241,7 @@ export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
               error: fileInfo.error || null,
             });
           }
-        }
+        });
 
         mainWindow?.webContents.send('compress-complete', {
           processed: result.processed,
@@ -256,20 +319,11 @@ export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
           result.log.push('[WARN] Ghostscript не найден, fallback режим.');
         }
 
-        let index = 0;
-        for (const fname of pdfs) {
+        await runInParallel(pdfs, async (fname, index) => {
           if (compressCancelRequested) {
-            const cancelMsg = 'Операция сжатия отменена пользователем';
-            result.log.push(cancelMsg);
-            mainWindow?.webContents.send('compress-complete', {
-              processed: result.processed,
-              total: result.total,
-              log: result.log,
-            });
-            break;
+            return;
           }
 
-          index++;
           const inP = path.join(inputFolder, fname);
           const outP = path.join(outputFolder, fname);
           const fileInfo: any = { name: fname, ok: false };
@@ -399,23 +453,15 @@ export function registerCompressIpc(getMainWindow: () => BrowserWindow | null) {
           if (compressCancelRequested) {
             const cancelMsg = 'Операция сжатия отменена пользователем';
             result.log.push(cancelMsg);
-            mainWindow?.webContents.send('compress-complete', {
-              processed: result.processed,
-              total: result.total,
-              log: result.log,
-            });
-            break;
           }
-        }
+        });
 
-        if (!compressCancelRequested) {
-          mainWindow?.webContents.send('compress-complete', {
-            processed: result.processed,
-            total: result.total,
-            log: result.log,
-          });
-          result.log.unshift(`Сжатие завершено. Engine: ${result.used}`);
-        }
+        mainWindow?.webContents.send('compress-complete', {
+          processed: result.processed,
+          total: result.total,
+          log: result.log,
+        });
+        result.log.unshift(`Сжатие завершено. Engine: ${result.used}`);
         return result;
       } catch (err) {
         const em = `Ошибка compress-pdfs: ${(err as Error).message}`;
