@@ -1,92 +1,227 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Проброс API из main в renderer.
-// Каждая функция вызывает соответствующий ipc канал или подписывается на событие.
-// Используйте window.electronAPI.<method> в renderer.
+// Здесь собраны все методы, которые пробрасываются в renderer как window.electronAPI.
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Открыть диалог выбора папки (main -> dialog)
-  selectFolder: (defaultPath?: string) => ipcRenderer.invoke('select-folder', defaultPath),
+  // ===== Общие / FS / настройки =====
 
-  // Безопасный basename (renderer не имеет доступа к node path)
-  basename: (fullPath: string) => fullPath.replace(/\\/g, '/').split('/').pop() || fullPath,
+  /** Открыть диалог выбора папки. */
+  selectFolder: (defaultPath?: string) =>
+    ipcRenderer.invoke('select-folder', defaultPath),
 
-  // Настройки: load/save в main (файл settings.json)
-  loadSettings: () => ipcRenderer.invoke('load-settings'),
-  saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+  /** Получить basename пути. */
+  basename: (fullPath: string) =>
+    ipcRenderer.sendSync('path-basename', fullPath),
 
-  // Запустить объединение PDF в main
-  mergePDFs: (options: any) => ipcRenderer.invoke('merge-pdfs', options),
+  /** Загрузить настройки из main. */
+  loadSettings: () =>
+    ipcRenderer.invoke('settings-load'),
 
-  // Отменить текущее объединение (main ставит флаг cancel)
-  cancelMerge: () => ipcRenderer.invoke('cancel-merge'),
-  cancelCompress: () => ipcRenderer.invoke('cancel-compress'),
+  /** Сохранить настройки в main. */
+  saveSettings: (settings: any) =>
+    ipcRenderer.invoke('settings-save', settings),
 
-  // Отправить в main информацию о текущей теме (sync theme main -> logWindow)
-  setTheme: (isDark: boolean) => ipcRenderer.send('theme-changed', isDark),
+  /** Проверить, является ли путь директорией. */
+  pathIsDirectory: (p: string) =>
+    ipcRenderer.invoke('fs-is-directory', p),
 
-  // Открыть папку в файловом менеджере (main -> shell)
-  openFolder: (p: string) => ipcRenderer.invoke('open-folder', p),
+  /** Подсчитать количество файлов в папке. */
+  countFilesInFolder: (folderPath: string) =>
+    ipcRenderer.invoke('fs-count-files', folderPath),
 
-  // Построить словарь (код -> путь) для zepb/insert
-  buildDict: (type: 'zepb' | 'insert', folderPath: string, recursive: boolean) => ipcRenderer.invoke('build-dict', type, folderPath, recursive),
+  /** Подсчитать количество PDF-файлов в папке. */
+  countPdfFilesInFolder: (folderPath: string) =>
+    ipcRenderer.invoke('fs-count-pdf-files', folderPath),
 
-  // Подсчитать файлы в папке (main fs)
-  countFilesInFolder: (p: string) => ipcRenderer.invoke('count-files-in-folder', p),
+  /** Открыть папку в системном проводнике. */
+  openFolder: (folderPath: string) =>
+    ipcRenderer.invoke('fs-open-folder', folderPath),
 
-  // Информация об приложении
-  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  /** Прочитать файл в буфер (для превью PDF). */
+  readFileBuffer: (filePath: string) =>
+    ipcRenderer.invoke('fs-read-file-buffer', filePath),
 
-  // Открыть внешний URL
-  openExternalUrl: (url: string) => ipcRenderer.invoke('open-external-url', url),
-  onCompressProgress: (cb: (event: any, payload: any) => void) => { ipcRenderer.on('compress-progress', (_e, payload) => cb(null, payload)); return () => ipcRenderer.removeAllListeners('compress-progress'); },
-  onCompressComplete: (cb: (event: any, payload: any) => void) => { ipcRenderer.on('compress-complete', (_e, payload) => cb(null, payload)); return () => ipcRenderer.removeAllListeners('compress-complete'); },
+  // ===== Тема =====
 
-  // Сжатие PDF (main)
-  compressPDFs: (opts: { inputFolder: string, outputFolder: string, quality?: number }) => ipcRenderer.invoke('compress-pdfs', opts),
-  compressFiles: (opts: { files: string[]; outputFolder: string; quality?: number }) => ipcRenderer.invoke('compress-files', opts),
-  readFileBuffer: (filePath: string) => ipcRenderer.invoke('read-file-buffer', filePath),
-  
-  // Проверка — является ли путь директорией
-  pathIsDirectory: (p: string) => ipcRenderer.invoke('path-is-directory', p),
+  /** Установить тему (тёмная/светлая). */
+  setTheme: (isDark: boolean) =>
+    ipcRenderer.send('theme-set', isDark),
 
-  // Подсчитать количество PDF-файлов в папке (рекурсивно)
-  countPdfFilesInFolder: (folderPath: string) => ipcRenderer.invoke('count-pdf-files-in-folder', folderPath),
+  /** Подписаться на изменение темы из main. */
+  onSetTheme: (cb: (event: any, isDark: boolean) => void) => {
+    const handler = (_event: any, isDark: boolean) => cb(_event, isDark);
+    ipcRenderer.on('theme-changed', handler);
+    return () => ipcRenderer.removeListener('theme-changed', handler);
+  },
 
-  // Обновления
-  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  downloadUpdate: () => ipcRenderer.invoke('download-update'),
-  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  // ===== Merge (объединение PDF) =====
 
-  // Логирование: отправить строку в main (logStore)
-  appendLog: (line: string) => ipcRenderer.send('append-log', line),
+  /** Построить словарь файлов для merge (ZEPB / insert). */
+  buildDict: (type: 'zepb' | 'insert', folderPath: string, recursive: boolean) =>
+    ipcRenderer.invoke('merge-build-dict', { type, folderPath, recursive }),
 
-  // Окно логов: открыть и экспортировать (main обрабатывает)
-  openLogWindow: () => ipcRenderer.invoke('open-log-window'),
-  exportLog: (suggestedName?: string) => ipcRenderer.invoke('export-log', suggestedName),
+  /** Запустить объединение PDF. */
+  mergePDFs: (options: {
+    mainFolder: string;
+    insertFolder: string;
+    outputFolder: string;
+    recursiveMain: boolean;
+    recursiveInsert: boolean;
+  }) => ipcRenderer.invoke('merge-run', options),
 
-  // Слушатели событий из main
-  onLogContent: (cb: (event: any, content: string) => void) => { ipcRenderer.on('log-content', (_e, content) => cb(_e, content)); return () => ipcRenderer.removeAllListeners('log-content'); },
-  onLogAppend: (cb: (event: any, line: string) => void) => { ipcRenderer.on('log-append', (_e, line) => cb(_e, line)); return () => ipcRenderer.removeAllListeners('log-append'); },
+  /** Запросить отмену объединения. */
+  cancelMerge: () =>
+    ipcRenderer.invoke('merge-cancel'),
 
-  // Слушатель темы (main -> renderer/logWindow)
-  onSetTheme: (cb: (event: any, isDark: boolean) => void) => { ipcRenderer.on('set-theme', (_e, isDark) => cb(_e, isDark)); return () => ipcRenderer.removeAllListeners('set-theme'); },
+  /** Подписаться на прогресс объединения. */
+  onMergeProgress: (cb: (event: any, payload: any) => void) => {
+    const handler = (_event: any, payload: any) => cb(_event, payload);
+    ipcRenderer.on('merge-progress', handler);
+    return () => ipcRenderer.removeListener('merge-progress', handler);
+  },
 
-  onUpdateAvailable: (cb: (event: any, version: string) => void) => { ipcRenderer.on('update-available', cb); return () => ipcRenderer.removeListener('update-available', cb); },
-  onUpdateNotAvailable: (cb: (event: any) => void) => { ipcRenderer.on('update-not-available', cb); return () => ipcRenderer.removeListener('update-not-available', cb); },
-  onUpdateError: (cb: (event: any, error: string) => void) => { ipcRenderer.on('update-error', cb); return () => ipcRenderer.removeListener('update-error', cb); },
-  onUpdateDownloadProgress: (cb: (event: any, percent: number) => void) => { ipcRenderer.on('update-download-progress', cb); return () => ipcRenderer.removeAllListeners('update-download-progress'); },
-  onUpdateDownloaded: (cb: (event: any, version: string) => void) => { ipcRenderer.on('update-downloaded', cb); return () => ipcRenderer.removeAllListeners('update-downloaded'); },
-  
-  // Прогресс и завершение объединения
-  onMergeProgress: (cb: (event: any, payload: any) => void) => { ipcRenderer.on('merge-progress', (_e, payload) => cb(null, payload)); return () => ipcRenderer.removeAllListeners('merge-progress'); },
-
+  /** Подписаться на предварительный список несшитых. */
   onMergeUnmatched: (cb: (event: any, payload: any) => void) => {
-    ipcRenderer.on('merge-unmatched', cb);
-    return () => ipcRenderer.removeListener('merge-unmatched', cb);
+    const handler = (_event: any, payload: any) => cb(_event, payload);
+    ipcRenderer.on('merge-unmatched', handler);
+    return () => ipcRenderer.removeListener('merge-unmatched', handler);
   },
+
+  /** Подписаться на завершение объединения. */
   onMergeComplete: (cb: (event: any, payload: any) => void) => {
-    ipcRenderer.on('merge-complete', cb);
-    return () => ipcRenderer.removeListener('merge-complete', cb);
+    const handler = (_event: any, payload: any) => cb(_event, payload);
+    ipcRenderer.on('merge-complete', handler);
+    return () => ipcRenderer.removeListener('merge-complete', handler);
   },
+
+  // ===== Compress (сжатие PDF) =====
+
+  /** Запустить сжатие папки с PDF. */
+  compressPDFs: (options: { inputFolder: string; outputFolder: string; quality?: number }) =>
+    ipcRenderer.invoke('compress-run-folder', options),
+
+  /** Запустить сжатие конкретных файлов. */
+  compressFiles: (opts: { files: string[]; outputFolder: string; quality?: number }) =>
+    ipcRenderer.invoke('compress-run-files', opts),
+
+  /** Запросить отмену сжатия. */
+  cancelCompress: () =>
+    ipcRenderer.invoke('compress-cancel'),
+
+  /** Подписаться на прогресс сжатия. */
+  onCompressProgress: (
+    cb: (
+      event: any,
+      payload: {
+        index: number;
+        total: number;
+        name: string;
+        inSize?: number;
+        outSize?: number;
+        ok: boolean;
+        error?: string | null;
+        notes?: string | null;
+      },
+    ) => void,
+  ) => {
+    const handler = (_event: any, payload: any) => cb(_event, payload);
+    ipcRenderer.on('compress-progress', handler);
+    return () => ipcRenderer.removeListener('compress-progress', handler);
+  },
+
+  /** Подписаться на завершение сжатия. */
+  onCompressComplete: (
+    cb: (event: any, payload: { processed: number; total: number; log: string[] }) => void,
+  ) => {
+    const handler = (_event: any, payload: any) => cb(_event, payload);
+    ipcRenderer.on('compress-complete', handler);
+    return () => ipcRenderer.removeListener('compress-complete', handler);
+  },
+
+  // ===== Логирование / окно лога =====
+
+  /** Добавить строку в лог. */
+  appendLog: (line: string) =>
+    ipcRenderer.send('log-append', line),
+
+  /** Открыть отдельное окно лога. */
+  openLogWindow: () =>
+    ipcRenderer.invoke('log-open-window'),
+
+  /** Экспортировать лог в файл. */
+  exportLog: (suggestedName?: string) =>
+    ipcRenderer.invoke('log-export', suggestedName),
+
+  /** Подписаться на полную загрузку содержимого лога. */
+  onLogContent: (cb: (event: any, content: string) => void) => {
+    const handler = (_event: any, content: string) => cb(_event, content);
+    ipcRenderer.on('log-content', handler);
+    return () => ipcRenderer.removeListener('log-content', handler);
+  },
+
+  /** Подписаться на добавление строки к логу. */
+  onLogAppend: (cb: (event: any, line: string) => void) => {
+    const handler = (_event: any, line: string) => cb(_event, line);
+    ipcRenderer.on('log-append', handler);
+    return () => ipcRenderer.removeListener('log-append', handler);
+  },
+
+  // ===== Обновления =====
+
+  /** Проверить наличие обновлений. */
+  checkForUpdates: () =>
+    ipcRenderer.invoke('updates-check'),
+
+  /** Начать загрузку обновления. */
+  downloadUpdate: () =>
+    ipcRenderer.invoke('updates-download'),
+
+  /** Завершить приложение и установить обновление. */
+  quitAndInstall: () =>
+    ipcRenderer.invoke('updates-quit-and-install'),
+
+  /** Подписаться на событие "обновление доступно". */
+  onUpdateAvailable: (cb: (event: any, version: string) => void) => {
+    const handler = (_event: any, version: string) => cb(_event, version);
+    ipcRenderer.on('update-available', handler);
+    return () => ipcRenderer.removeListener('update-available', handler);
+  },
+
+  /** Подписаться на событие "обновлений нет". */
+  onUpdateNotAvailable: (cb: (event: any) => void) => {
+    const handler = (_event: any) => cb(_event);
+    ipcRenderer.on('update-not-available', handler);
+    return () => ipcRenderer.removeListener('update-not-available', handler);
+  },
+
+  /** Подписаться на событие "ошибка обновления". */
+  onUpdateError: (cb: (event: any, error: string) => void) => {
+    const handler = (_event: any, error: string) => cb(_event, error);
+    ipcRenderer.on('update-error', handler);
+    return () => ipcRenderer.removeListener('update-error', handler);
+  },
+
+  /** Подписаться на прогресс загрузки обновления. */
+  onUpdateDownloadProgress: (cb: (event: any, percent: number) => void) => {
+    const handler = (_event: any, percent: number) => cb(_event, percent);
+    ipcRenderer.on('update-download-progress', handler);
+    return () => ipcRenderer.removeListener('update-download-progress', handler);
+  },
+
+  /** Подписаться на событие "обновление скачано". */
+  onUpdateDownloaded: (cb: (event: any, version: string) => void) => {
+    const handler = (_event: any, version: string) => cb(_event, version);
+    ipcRenderer.on('update-downloaded', handler);
+    return () => ipcRenderer.removeListener('update-downloaded', handler);
+  },
+
+  // ===== Прочее =====
+
+  /** Получить информацию о приложении. */
+  getAppInfo: () =>
+    ipcRenderer.invoke('app-info'),
+
+  /** Открыть внешний URL в браузере. */
+  openExternalUrl: (url: string) =>
+    ipcRenderer.invoke('open-external-url', url),
 });

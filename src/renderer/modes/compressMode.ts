@@ -1,17 +1,18 @@
 import { showPopup } from '../ui/popup';
 
-interface ElectronAPICompress {
-  selectFolder: (defaultPath?: string) => Promise<string | null>;
-  countFilesInFolder: (folderPath: string) => Promise<number>;
-  countPdfFilesInFolder: (folderPath: string) => Promise<number>;
-  pathIsDirectory: (p: string) => Promise<boolean>;
-  compressPDFs: (opts: { inputFolder: string; outputFolder: string; quality?: number }) => Promise<any>;
-  compressFiles: (opts: { files: string[]; outputFolder: string; quality?: number }) => Promise<any>;
-  cancelCompress: () => Promise<boolean>;
-  readFileBuffer: (filePath: string) => Promise<{ ok: boolean; data?: number[]; error?: string }>;
-  onCompressProgress: (cb: (event: any, payload: any) => void) => () => void;
-  onCompressComplete: (cb: (event: any, payload: any) => void) => () => void;
-}
+type ElectronAPICompress = Pick<
+  Window['electronAPI'],
+  | 'selectFolder'
+  | 'countFilesInFolder'
+  | 'countPdfFilesInFolder'
+  | 'pathIsDirectory'
+  | 'compressPDFs'
+  | 'compressFiles'
+  | 'cancelCompress'
+  | 'readFileBuffer'
+  | 'onCompressProgress'
+  | 'onCompressComplete'
+>;
 
 export interface CompressSettingsSnapshot {
   compressInputFolder: string | null;
@@ -27,14 +28,7 @@ interface CompressModeDeps {
   electronAPI: ElectronAPICompress;
   setBusy: (busy: boolean) => void;
   log: (message: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
-
-  /** Получить актуальный снимок compress-настроек. */
   getSettings: () => CompressSettingsSnapshot;
-
-  /**
-   * Обновление compress-настроек через SettingsState/CompressState.
-   * В index.ts делегирует в compressState.update(patch, { save: true }).
-   */
   updateSettings: (patch: Partial<CompressSettingsSnapshot>) => void;
 }
 

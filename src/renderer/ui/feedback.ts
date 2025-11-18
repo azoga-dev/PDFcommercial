@@ -1,8 +1,6 @@
 import { showPopup } from './popup';
 
-interface ElectronAPIFeedback {
-  openExternalUrl: (url: string) => Promise<boolean | void>;
-}
+type ElectronAPIFeedback = Pick<Window['electronAPI'], 'openExternalUrl'>;
 
 interface FeedbackDeps {
   electronAPI: ElectronAPIFeedback;

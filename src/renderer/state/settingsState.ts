@@ -1,9 +1,7 @@
-interface ElectronAPISettings {
-  loadSettings: () => Promise<any>;
-  saveSettings: (settings: any) => Promise<boolean>;
-  buildDict: (type: 'zepb' | 'insert', folderPath: string, recursive: boolean) => Promise<Record<string, string>>;
-  countFilesInFolder: (folderPath: string) => Promise<number>;
-}
+type ElectronAPISettings = Pick<
+  Window['electronAPI'],
+  'loadSettings' | 'saveSettings' | 'buildDict' | 'countFilesInFolder'
+>;
 
 export interface AppSettings {
   mainFolder: string;

@@ -1,16 +1,17 @@
 import { showPopup } from '../ui/popup';
 
-interface ElectronAPIMerge {
-  selectFolder: (defaultPath?: string) => Promise<string | null>;
-  buildDict: (type: 'zepb' | 'insert', folderPath: string, recursive: boolean) => Promise<Record<string, string>>;
-  countFilesInFolder: (folderPath: string) => Promise<number>;
-  mergePDFs: (opts: any) => Promise<any>;
-  cancelMerge: () => Promise<boolean>;
-  openFolder: (folderPath: string) => Promise<boolean>;
-  onMergeProgress: (cb: (event: any, payload: any) => void) => () => void;
-  onMergeUnmatched: (cb: (event: any, payload: any) => void) => () => void;
-  onMergeComplete: (cb: (event: any, payload: any) => void) => () => void;
-}
+type ElectronAPIMerge = Pick<
+  Window['electronAPI'],
+  | 'selectFolder'
+  | 'buildDict'
+  | 'countFilesInFolder'
+  | 'mergePDFs'
+  | 'cancelMerge'
+  | 'openFolder'
+  | 'onMergeProgress'
+  | 'onMergeUnmatched'
+  | 'onMergeComplete'
+>;
 
 export interface MergeSettingsSnapshot {
   mainFolder: string;
@@ -28,14 +29,8 @@ interface MergeModeDeps {
   electronAPI: ElectronAPIMerge;
   setBusy: (busy: boolean) => void;
   log: (msg: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
-
-  /** Актуальный snapshot merge-настроек. */
   getSettings: () => MergeSettingsSnapshot;
-
-  /** Обновление merge-настроек через MergeState/SettingsState. */
   updateSettings: (patch: Partial<MergeSettingsSnapshot>) => void;
-
-  /** Обновление словарей через SettingsState (опционально). */
   updateDicts?: (dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void;
 }
 
@@ -218,7 +213,7 @@ export function initMergeMode({
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   });
 
-  electronAPI.onMergeUnmatched((_, payload: any) => {
+  electronAPI.onMergeUnmatched?.((_, payload: any) => {
     try {
       const { unmatchedNotifications = [], unmatchedZepb = [] } = payload || {};
       unmatchedItems = [];

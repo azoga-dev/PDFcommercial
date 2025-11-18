@@ -1,15 +1,16 @@
 import { showPopup } from './popup';
 
-interface ElectronAPIUpdates {
-  checkForUpdates: () => Promise<null>;
-  downloadUpdate: () => Promise<boolean>;
-  quitAndInstall: () => Promise<void>;
-  onUpdateAvailable: (cb: (event: any, version: string) => void) => () => void;
-  onUpdateNotAvailable: (cb: (event: any) => void) => () => void;
-  onUpdateError: (cb: (event: any, error: string) => void) => () => void;
-  onUpdateDownloadProgress: (cb: (event: any, percent: number) => void) => () => void;
-  onUpdateDownloaded: (cb: (event: any, version: string) => void) => () => void;
-}
+type ElectronAPIUpdates = Pick<
+  Window['electronAPI'],
+  | 'checkForUpdates'
+  | 'downloadUpdate'
+  | 'quitAndInstall'
+  | 'onUpdateAvailable'
+  | 'onUpdateNotAvailable'
+  | 'onUpdateError'
+  | 'onUpdateDownloadProgress'
+  | 'onUpdateDownloaded'
+>;
 
 interface UpdatesDeps {
   electronAPI: ElectronAPIUpdates;
