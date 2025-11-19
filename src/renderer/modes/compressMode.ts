@@ -76,6 +76,14 @@ export function initCompressMode({
     cdBtnRun,
   } = ui;
 
+  // при старте убедимся, что контейнер таблицы имеет overflow:auto и скрытый скроллбар
+  const wrap = document.getElementById('compress-table-wrap') as HTMLDivElement | null;
+  if (wrap) {
+    wrap.style.overflow = 'auto';
+    // добавляем класс, который скрывает полосу прокрутки (у тебя уже есть соответствующие правила)
+    wrap.classList.add('hide-scrollbar');
+  }
+
   let droppedFiles: string[] = [];
   let isCompressRunning = false;
   let cancelCompressRequested = false;
@@ -375,9 +383,14 @@ export function initCompressMode({
       if (!wrap) return;
       const rect = wrap.getBoundingClientRect();
       const bottomPadding = 24;
-      const avail = Math.max(220, Math.floor(window.innerHeight - rect.top - bottomPadding));
+      const computed = Math.max(220, Math.floor(window.innerHeight - rect.top - bottomPadding));
+      // Ограничиваем максимальную высоту, чтобы таблица не занимала весь экран
+      const MAX_TABLE_HEIGHT = 320; // px — уменьшенный размер таблички
+      const avail = Math.max(220, Math.min(MAX_TABLE_HEIGHT, computed));
       wrap.style.height = `${avail}px`;
       wrap.style.maxHeight = `${avail}px`;
+      // убедимся, что есть прокрутка внутри (скроллбар скрыт классом hide-scrollbar)
+      wrap.style.overflow = 'auto';
     } catch (e) {
       console.error('layoutCompressResize error', e);
     }
