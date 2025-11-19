@@ -1,4 +1,5 @@
 import { showPopup } from '../ui/popup';
+import type { MergeUiRefs } from '../../types/ui';
 
 type ElectronAPIMerge = Pick<
   Window['electronAPI'],
@@ -31,7 +32,7 @@ interface MergeModeDeps {
   log: (msg: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
   getSettings: () => MergeSettingsSnapshot;
   updateSettings: (patch: Partial<MergeSettingsSnapshot>) => void;
-  updateDicts?: (dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void;
+  ui: MergeUiRefs;
 }
 
 interface UnmatchedItem {
@@ -47,7 +48,7 @@ export function initMergeMode({
   log,
   getSettings,
   updateSettings,
-  updateDicts,
+  ui,
 }: MergeModeDeps) {
   const btnMain = document.getElementById('btn-main') as HTMLButtonElement;
   const btnInsert = document.getElementById('btn-insert') as HTMLButtonElement;
