@@ -1,7 +1,6 @@
 import { initTheme } from './ui/theme';
 import { createSpinnerController } from './ui/spinner';
 import { showPopup } from './ui/popup';
-import { initConfirmClearModal } from './ui/confirmClear';
 import { initMergeMode } from './modes/mergeMode';
 import { initCompressMode } from './modes/compressMode';
 import { initUpdates } from './ui/updates';
@@ -37,7 +36,6 @@ type ElectronAPI = Window['electronAPI'];
   const electronAPI: ElectronAPI = window.electronAPI;
 
   document.addEventListener('DOMContentLoaded', () => {
-    // Собираем все ссылки на DOM в одном месте
     const ui = getMainUiRefs();
 
     // Лог
@@ -116,20 +114,6 @@ type ElectronAPI = Window['electronAPI'];
     const mergeState = new MergeState({ settingsState });
     const compressState = new CompressState({ settingsState });
 
-    async function performClearSettingsAndUi() {
-      await settingsState.clearMergeOnly();
-
-      if (ui.unmatched.unmatchedTableBody) ui.unmatched.unmatchedTableBody.innerHTML = '';
-      if (ui.unmatched.unmatchedBlock) ui.unmatched.unmatchedBlock.style.display = 'none';
-      if (ui.unmatched.unmatchedCountBadge) ui.unmatched.unmatchedCountBadge.style.display = 'none';
-      if (ui.unmatched.unmatchedExportBtn) ui.unmatched.unmatchedExportBtn.disabled = true;
-      if (ui.unmatched.unmatchedClearBtn) ui.unmatched.unmatchedClearBtn.disabled = true;
-      if (ui.unmatched.unmatchedEmpty) ui.unmatched.unmatchedEmpty.style.display = 'block';
-
-      showPopup('Настройки очищены', 4000);
-      log('Настройки очищены', 'warning');
-    }
-
     const btnOpenLog = document.getElementById('btn-open-log') as HTMLButtonElement | null;
     if (btnOpenLog) {
       btnOpenLog.addEventListener('click', () => {
@@ -153,7 +137,6 @@ type ElectronAPI = Window['electronAPI'];
       compressControlsContainer: ui.compress.compressControlsContainer,
     });
 
-    // Остальная инициализация
     setTimeout(() => {
       try {
         ensurePdfJsWorker();
@@ -161,11 +144,6 @@ type ElectronAPI = Window['electronAPI'];
     }, 400);
 
     settingsState.load().catch(console.error);
-
-    initConfirmClearModal({
-      triggerButton: ui.merge.btnClearSettings,
-      onConfirm: performClearSettingsAndUi,
-    });
 
     initMergeMode({
       electronAPI,
@@ -178,6 +156,7 @@ type ElectronAPI = Window['electronAPI'];
       updateDicts: (dicts) => {
         settingsState.updateDicts(dicts);
       },
+      ui: ui.merge,
     });
 
     initCompressMode({
@@ -188,6 +167,8 @@ type ElectronAPI = Window['electronAPI'];
       updateSettings: (patch) => {
         compressState.update(patch, { save: true });
       },
+      // новый параметр ui
+      ui: ui.compress,
     });
 
     initUpdates({

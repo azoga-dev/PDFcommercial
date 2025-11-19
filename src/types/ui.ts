@@ -3,8 +3,7 @@
 // Идея:
 // - Все getElementById для главного окна собраны здесь.
 // - index.ts и другие модули не дергают document.getElementById напрямую,
-//   а используют getMainUiRefs() / getCompressUiRefs() / getUnmatchedUiRefs().
-//
+//   а используют getMainUiRefs().
 // Если какой-то id изменится в index.html — править нужно только здесь.
 
 export interface NavUiRefs {
@@ -26,6 +25,7 @@ export interface MergeUiRefs {
   btnRun: HTMLButtonElement;
   btnOpenOutput: HTMLButtonElement;
   btnClearSettings: HTMLButtonElement | null;
+  btnOpenReport: HTMLButtonElement | null;
 
   labelMain: HTMLInputElement;
   labelInsert: HTMLInputElement;
@@ -42,13 +42,44 @@ export interface MergeUiRefs {
   statsSuccess: HTMLSpanElement;
   statsSkipped: HTMLSpanElement;
   statsTotal: HTMLSpanElement;
+  progressBarFill: HTMLDivElement;
+
+  unmatchedBlock: HTMLDivElement | null;
+  unmatchedTableBody: HTMLTableSectionElement | null;
+  unmatchedSearch: HTMLInputElement | null;
+  unmatchedFilter: HTMLSelectElement | null;
+  unmatchedExportBtn: HTMLButtonElement | null;
+  unmatchedClearBtn: HTMLButtonElement | null;
+  unmatchedCountBadge: HTMLSpanElement | null;
+  unmatchedEmpty: HTMLDivElement | null;
 }
 
 export interface CompressUiRefs {
   btnCompress: HTMLButtonElement | null;
   btnCompressRun: HTMLButtonElement | null;
+  btnCompressOutput: HTMLButtonElement | null;
+  btnCompressClear: HTMLButtonElement | null;
+
   labelCompress: HTMLInputElement | null;
   labelCompressOutput: HTMLInputElement | null;
+
+  selectCompressQuality: HTMLSelectElement | null;
+
+  compressProgressFill: HTMLDivElement | null;
+  compressProgressPercent: HTMLSpanElement | null;
+  compressStatusLabel: HTMLSpanElement | null;
+  compressTableBody: HTMLTableSectionElement | null;
+
+  settingCompressQuality: HTMLSelectElement | null;
+  settingThumbsEnabled: HTMLInputElement | null;
+  settingThumbSize: HTMLSelectElement | null;
+
+  cdZone: HTMLDivElement | null;
+  cdCount: HTMLSpanElement | null;
+  cdGallery: HTMLDivElement | null;
+  cdBtnClear: HTMLButtonElement | null;
+  cdBtnRun: HTMLButtonElement | null;
+
   compressControlsContainer: HTMLElement | null;
 }
 
@@ -117,7 +148,8 @@ export function getMainUiRefs(): MainUiRefs {
   const btnOutput = mustGet<HTMLButtonElement>('btn-output');
   const btnRun = mustGet<HTMLButtonElement>('btn-run');
   const btnOpenOutput = mustGet<HTMLButtonElement>('btn-open-output');
-  const btnClearSettings = mustGet<HTMLButtonElement>('btn-clear-settings');
+  const btnClearSettings = document.getElementById('btn-clear-settings') as HTMLButtonElement | null;
+  const btnOpenReport = document.getElementById('btn-open-report') as HTMLButtonElement | null;
 
   const labelMain = mustGet<HTMLInputElement>('label-main');
   const labelInsert = mustGet<HTMLInputElement>('label-insert');
@@ -134,6 +166,7 @@ export function getMainUiRefs(): MainUiRefs {
   const statsSuccess = mustGet<HTMLSpanElement>('stats-success');
   const statsSkipped = mustGet<HTMLSpanElement>('stats-skipped');
   const statsTotal = mustGet<HTMLSpanElement>('stats-total');
+  const progressBarFill = mustGet<HTMLDivElement>('progress-bar-fill');
 
   const logArea = document.getElementById('log') as HTMLTextAreaElement | null;
 
@@ -159,9 +192,24 @@ export function getMainUiRefs(): MainUiRefs {
 
   const btnCompress = document.getElementById('btn-compress') as HTMLButtonElement | null;
   const btnCompressRun = document.getElementById('btn-compress-run') as HTMLButtonElement | null;
+  const btnCompressOutput = document.getElementById('btn-compress-output') as HTMLButtonElement | null;
+  const btnCompressClear = document.getElementById('btn-compress-clear') as HTMLButtonElement | null;
+
   const labelCompress = document.getElementById('label-compress') as HTMLInputElement | null;
   const labelCompressOutput = document.getElementById('label-compress-output') as HTMLInputElement | null;
   const compressControlsContainer = document.getElementById('compress-controls') as HTMLElement | null;
+
+  const selectCompressQuality = document.getElementById('compress-quality') as HTMLSelectElement | null;
+  const compressProgressFill = document.getElementById('compress-progress-fill') as HTMLDivElement | null;
+  const compressProgressPercent = document.getElementById('compress-progress-percent') as HTMLSpanElement | null;
+  const compressStatusLabel = document.getElementById('compress-status-label') as HTMLSpanElement | null;
+  const compressTableBody = document.querySelector('#compress-table tbody') as HTMLTableSectionElement | null;
+
+  const cdZone = document.getElementById('compress-drop-hint') as HTMLDivElement | null;
+  const cdCount = document.getElementById('compress-drop-count') as HTMLSpanElement | null;
+  const cdGallery = document.getElementById('compress-dd-gallery') as HTMLDivElement | null;
+  const cdBtnClear = document.getElementById('compress-dd-clear') as HTMLButtonElement | null;
+  const cdBtnRun = document.getElementById('compress-dd-run') as HTMLButtonElement | null;
 
   const unmatchedBlock = document.getElementById('unmatched-block') as HTMLDivElement | null;
   const unmatchedTableBody = document.querySelector('#unmatched-table tbody') as HTMLTableSectionElement | null;
@@ -169,6 +217,10 @@ export function getMainUiRefs(): MainUiRefs {
   const unmatchedExportBtn = document.getElementById('unmatched-export') as HTMLButtonElement | null;
   const unmatchedClearBtn = document.getElementById('unmatched-clear') as HTMLButtonElement | null;
   const unmatchedEmpty = document.getElementById('unmatched-empty') as HTMLDivElement | null;
+
+  // поля поиска/фильтра несшитых в merge‑режиме
+  const unmatchedSearch = document.getElementById('unmatched-search') as HTMLInputElement | null;
+  const unmatchedFilter = document.getElementById('unmatched-filter-type') as HTMLSelectElement | null;
 
   return {
     nav: {
@@ -188,6 +240,7 @@ export function getMainUiRefs(): MainUiRefs {
       btnRun,
       btnOpenOutput,
       btnClearSettings,
+      btnOpenReport,
       labelMain,
       labelInsert,
       labelOutput,
@@ -201,12 +254,36 @@ export function getMainUiRefs(): MainUiRefs {
       statsSuccess,
       statsSkipped,
       statsTotal,
+      progressBarFill,
+      unmatchedBlock,
+      unmatchedTableBody,
+      unmatchedSearch,
+      unmatchedFilter,
+      unmatchedExportBtn,
+      unmatchedClearBtn,
+      unmatchedCountBadge,
+      unmatchedEmpty,
     },
     compress: {
       btnCompress,
       btnCompressRun,
+      btnCompressOutput,
+      btnCompressClear,
       labelCompress,
       labelCompressOutput,
+      selectCompressQuality,
+      compressProgressFill,
+      compressProgressPercent,
+      compressStatusLabel,
+      compressTableBody,
+      settingCompressQuality,
+      settingThumbsEnabled,
+      settingThumbSize,
+      cdZone,
+      cdCount,
+      cdGallery,
+      cdBtnClear,
+      cdBtnRun,
       compressControlsContainer,
     },
     settings: {

@@ -1,5 +1,5 @@
 import { showPopup } from '../ui/popup';
-import { initConfirmClearModal } from '../ui/confirmClear';
+import type { CompressUiRefs } from '../../types/ui';
 
 type ElectronAPICompress = Pick<
   Window['electronAPI'],
@@ -31,6 +31,7 @@ interface CompressModeDeps {
   log: (message: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
   getSettings: () => CompressSettingsSnapshot;
   updateSettings: (patch: Partial<CompressSettingsSnapshot>) => void;
+  ui: CompressUiRefs;
 }
 
 interface CompressDroppedFile {
@@ -41,32 +42,40 @@ interface CompressDroppedFile {
   error?: string;
 }
 
-export function initCompressMode({ electronAPI, setBusy, log, getSettings, updateSettings }: CompressModeDeps) {
-  // --- DOM элементы ---
-  const btnCompress = document.getElementById('btn-compress') as HTMLButtonElement | null;
-  const btnCompressOutput = document.getElementById('btn-compress-output') as HTMLButtonElement | null;
-  const btnCompressRun = document.getElementById('btn-compress-run') as HTMLButtonElement | null;
-  const btnCompressClear = document.getElementById('btn-compress-clear') as HTMLButtonElement | null;
+export interface CompressModeApi {
+  /** Очистка только compress‑части состояния + UI. */
+  clearCompress: () => void;
+}
 
-  const labelCompress = document.getElementById('label-compress') as HTMLInputElement | null;
-  const labelCompressOutput = document.getElementById('label-compress-output') as HTMLInputElement | null;
-  const selectCompressQuality = document.getElementById('compress-quality') as HTMLSelectElement | null;
-
-  const compressProgressFill = document.getElementById('compress-progress-fill') as HTMLDivElement | null;
-  const compressProgressPercent = document.getElementById('compress-progress-percent') as HTMLSpanElement | null;
-  const compressStatusLabel = document.getElementById('compress-status-label') as HTMLSpanElement | null;
-  const compressTableBody = document.querySelector('#compress-table tbody') as HTMLTableSectionElement | null;
-
-  const settingCompressQuality = document.getElementById('setting-compress-quality') as HTMLSelectElement | null;
-  const settingThumbsEnabled = document.getElementById('setting-thumbnails-enabled') as HTMLInputElement | null;
-  const settingThumbSize = document.getElementById('setting-thumbnail-size') as HTMLSelectElement | null;
-
-  // Drag & Drop UI
-  const cdZone = document.getElementById('compress-drop-hint') as HTMLDivElement | null;
-  const cdCount = document.getElementById('compress-drop-count') as HTMLSpanElement | null;
-  const cdGallery = document.getElementById('compress-dd-gallery') as HTMLDivElement | null;
-  const cdBtnClear = document.getElementById('compress-dd-clear') as HTMLButtonElement | null;
-  const cdBtnRun = document.getElementById('compress-dd-run') as HTMLButtonElement | null;
+export function initCompressMode({
+  electronAPI,
+  setBusy,
+  log,
+  getSettings,
+  updateSettings,
+  ui,
+}: CompressModeDeps): CompressModeApi {
+  const {
+    btnCompress,
+    btnCompressOutput,
+    btnCompressRun,
+    // btnCompressClear — модалка вешается снаружи (index.ts)
+    labelCompress,
+    labelCompressOutput,
+    selectCompressQuality,
+    compressProgressFill,
+    compressProgressPercent,
+    compressStatusLabel,
+    compressTableBody,
+    settingCompressQuality,
+    settingThumbsEnabled,
+    settingThumbSize,
+    cdZone,
+    cdCount,
+    cdGallery,
+    cdBtnClear,
+    cdBtnRun,
+  } = ui;
 
   // --- Локальное состояние только для UI ---
   let droppedFiles: string[] = [];
@@ -115,7 +124,7 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
   function getCompressQuality(): number {
     const src = settingCompressQuality || selectCompressQuality;
     const s = getSettings();
-    const v = src ? parseInt(src.value, 10) : (s.compressQuality ?? 30);
+    const v = src ? parseInt(src.value, 10) : s.compressQuality ?? 30;
     return Number.isFinite(v) ? v : 30;
   }
 
@@ -128,7 +137,7 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
   function getThumbSize(): number {
     const src = settingThumbSize;
     const s = getSettings();
-    const v = src ? parseInt(src.value, 10) : (s.thumbnailSize ?? 128);
+    const v = src ? parseInt(src.value, 10) : s.thumbnailSize ?? 128;
     return Number.isFinite(v) ? v : 128;
   }
 
@@ -554,10 +563,9 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
         showPopup('Ошибка при сжатии. Проверьте лог.', 8000);
       } finally {
         droppedFiles = [];
-        const countEl = document.getElementById('compress-drop-count') as HTMLSpanElement | null;
-        if (countEl) {
-          countEl.style.display = 'none';
-          countEl.textContent = '0';
+        if (cdCount) {
+          cdCount.style.display = 'none';
+          cdCount.textContent = '0';
         }
         const sEnd = getSettings();
         if (labelCompress && sEnd.lastSelectedCompress) labelCompress.value = sEnd.lastSelectedCompress;
@@ -568,37 +576,7 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
     });
   }
 
-  if (btnCompressClear) {
-    initConfirmClearModal({
-      triggerButton: btnCompressClear,
-      async onConfirm() {
-        // Здесь та же логика, что была после confirm(...)
-        droppedFiles = [];
-        compressDropped = [];
-
-        updateFolderLabel(labelCompress, null);
-        updateFolderLabel(labelCompressOutput, null);
-        updateCompressDnDState();
-
-        updateSettings({
-          compressInputFolder: null,
-          compressOutputFolder: null,
-          lastSelectedCompress: null,
-          lastSelectedCompressOutputFolder: null,
-          compressQuality: 30,
-          thumbnailsEnabled: true,
-          thumbnailSize: 128,
-        });
-
-        clearCompressTable();
-        log('Настройки сжатия очищены', 'warning');
-        showPopup('Настройки сжатия очищены', 4000);
-        updateCompressReady();
-      },
-    });
-  }
-
-  // --- "Сжать добавленные" из DnD-глереи ---
+  // --- "Сжать добавленные" из DnD‑галереи ---
 
   if (cdBtnRun) {
     cdBtnRun.addEventListener('click', async () => {
@@ -768,4 +746,31 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
       layoutCompressResize();
     } catch {}
   });
+
+  /** Публичное API для index.ts — вызывается из модалки. */
+  function clearCompress() {
+    droppedFiles = [];
+    compressDropped = [];
+
+    updateFolderLabel(labelCompress, null);
+    updateFolderLabel(labelCompressOutput, null);
+    updateCompressDnDState();
+
+    updateSettings({
+      compressInputFolder: null,
+      compressOutputFolder: null,
+      lastSelectedCompress: null,
+      lastSelectedCompressOutputFolder: null,
+      compressQuality: 30,
+      thumbnailsEnabled: true,
+      thumbnailSize: 128,
+    });
+
+    clearCompressTable();
+    log('Настройки сжатия очищены', 'warning');
+    showPopup('Настройки сжатия очищены', 4000);
+    updateCompressReady();
+  }
+
+  return { clearCompress };
 }

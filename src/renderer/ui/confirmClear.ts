@@ -19,75 +19,78 @@ export function initConfirmClearModal({ triggerButton, onConfirm }: ConfirmClear
   if (existing) existing.remove();
 
   // Стили модалки (максимально локальные, с !important, чтобы не конфликтовать)
-  const style = document.createElement('style');
-  style.id = 'confirm-clear-modal-styles';
-  style.textContent = `
-  #confirm-clear-modal {
-    position: fixed !important;
-    inset: 0 !important;
-    display: none !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 99999 !important;
+  const styleId = 'confirm-clear-modal-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+    #confirm-clear-modal {
+      position: fixed !important;
+      inset: 0 !important;
+      display: none !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 99999 !important;
+    }
+    #confirm-clear-modal.confirm-visible {
+      display: flex !important;
+    }
+    #confirm-clear-modal .confirm-backdrop {
+      position: absolute !important;
+      inset: 0 !important;
+      background: rgba(0,0,0,0.55) !important;
+      backdrop-filter: blur(2px) !important;
+      -webkit-backdrop-filter: blur(2px) !important;
+    }
+    #confirm-clear-modal .confirm-panel {
+      position: relative !important;
+      z-index: 100000 !important;
+      width: 560px !important;
+      max-width: calc(100% - 40px) !important;
+      background: var(--main-bg, #fff) !important;
+      border-radius: 12px !important;
+      border: 1px solid var(--sidebar-border, #e5e7eb) !important;
+      padding: 16px 18px 14px !important;
+      box-shadow: 0 20px 45px rgba(15,23,42,0.40) !important;
+    }
+    #confirm-clear-modal .confirm-header {
+      font-weight:600;
+      margin-bottom:6px;
+      font-size:15px;
+    }
+    #confirm-clear-modal .confirm-body {
+      font-size:13px;
+      line-height:1.4;
+      color:var(--text-color, #111827);
+    }
+    #confirm-clear-modal .confirm-actions {
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      margin-top:12px;
+    }
+    #confirm-clear-modal .btn {
+      padding:8px 12px;
+      border-radius:8px;
+      cursor:pointer;
+    }
+    #confirm-clear-modal .btn.btn-outline {
+      background: transparent;
+      border:1px solid var(--sidebar-border, #e5e7eb);
+      color:var(--text-color, #111827);
+    }
+    #confirm-clear-modal .btn.btn-primary {
+      background:#ef4444;
+      color:#fff;
+      border:none;
+    }
+    #confirm-clear-modal .btn:focus {
+      outline: 2px solid rgba(59,130,246,0.18);
+      outline-offset: 2px;
+    }
+    `;
+    document.head.appendChild(style);
   }
-  #confirm-clear-modal.confirm-visible {
-    display: flex !important;
-  }
-  #confirm-clear-modal .confirm-backdrop {
-    position: absolute !important;
-    inset: 0 !important;
-    background: rgba(0,0,0,0.55) !important;
-    backdrop-filter: blur(2px) !important;
-    -webkit-backdrop-filter: blur(2px) !important;
-  }
-  #confirm-clear-modal .confirm-panel {
-    position: relative !important;
-    z-index: 100000 !important;
-    width: 560px !important;
-    max-width: calc(100% - 40px) !important;
-    background: var(--main-bg, #fff) !important;
-    border-radius: 12px !important;
-    border: 1px solid var(--sidebar-border, #e5e7eb) !important;
-    padding: 16px 18px 14px !important;
-    box-shadow: 0 20px 45px rgba(15,23,42,0.40) !important;
-  }
-  #confirm-clear-modal .confirm-header {
-    font-weight:600;
-    margin-bottom:6px;
-    font-size:15px;
-  }
-  #confirm-clear-modal .confirm-body {
-    font-size:13px;
-    line-height:1.4;
-    color:var(--text-color, #111827);
-  }
-  #confirm-clear-modal .confirm-actions {
-    display:flex;
-    gap:8px;
-    justify-content:flex-end;
-    margin-top:12px;
-  }
-  #confirm-clear-modal .btn {
-    padding:8px 12px;
-    border-radius:8px;
-    cursor:pointer;
-  }
-  #confirm-clear-modal .btn.btn-outline {
-    background: transparent;
-    border:1px solid var(--sidebar-border, #e5e7eb);
-    color:var(--text-color, #111827);
-  }
-  #confirm-clear-modal .btn.btn-primary {
-    background:#ef4444;
-    color:#fff;
-    border:none;
-  }
-  #confirm-clear-modal .btn:focus {
-    outline: 2px solid rgba(59,130,246,0.18);
-    outline-offset: 2px;
-  }
-  `;
-  document.head.appendChild(style);
 
   // DOM модалки
   const modal = document.createElement('div');
@@ -172,12 +175,13 @@ export function initConfirmClearModal({ triggerButton, onConfirm }: ConfirmClear
     }
   });
 
-  // Перехватываем кнопку "Очистить настройки"
-  // Удаляем старые слушатели (если были) и вешаем новый
-  const fresh = triggerButton.cloneNode(true) as HTMLButtonElement;
-  triggerButton.parentElement?.replaceChild(fresh, triggerButton);
-  fresh.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    openModal();
-  });
+  // Обработчик на исходную кнопку
+  const anyBtn = triggerButton as any;
+  if (!anyBtn._confirmClearBound) {
+    anyBtn._confirmClearBound = true;
+    triggerButton.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      openModal();
+    });
+  }
 }

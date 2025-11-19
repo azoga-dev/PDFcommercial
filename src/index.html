@@ -897,13 +897,15 @@
       
         <!-- Футер сайдбара с кнопкой настроек -->
          <div class="sidebar-footer">
+            <button id="btn-open-log" class="settings-button" style="margin-top: 0.5rem;">
+                <span>Открыть лог</span>
+            </button>
+            <button id="btn-clear-all-settings" class="settings-button" style="margin-top: 0.5rem;">
+                <span>Очистить все настройки</span>
+            </button>
             <button id="nav-settings" class="settings-button">
                 <i data-lucide="settings" class="w-4 h-4"></i>
                 <span>Настройки</span>
-            </button>
-
-            <button id="btn-open-log" class="settings-button" style="margin-top: 0.5rem;">
-                <span>Открыть лог</span>
             </button>
             <div class="text-xs text-gray-500 text-center mt-1">version 1.0.2</div>
         </div>
@@ -1025,9 +1027,6 @@
                 </button>
                 <button id="btn-open-output" class="btn btn-outline" disabled>
                     Открыть папку
-                </button>
-                <button id="btn-clear-settings" class="btn btn-primary">
-                    Очистить
                 </button>
             </div>
 
@@ -1211,7 +1210,6 @@
 
         <div class="controls-row" style="margin-top:14px;">
         <button id="btn-compress-run" class="btn btn-secondary" disabled>Начать сжатие</button>
-        <button id="btn-compress-clear" class="btn btn-outline" title="Очистить настройки сжатия">Очистить</button>
         </div>
     </div>
         </div>
