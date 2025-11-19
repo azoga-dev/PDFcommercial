@@ -1,193 +1,34 @@
-import { initTheme } from './ui/theme';
-import { createSpinnerController } from './ui/spinner';
-import { showPopup } from './ui/popup';
-import { initMergeMode } from './modes/mergeMode';
-import { initCompressMode } from './modes/compressMode';
-import { initUpdates } from './ui/updates';
-import { initFeedback } from './ui/feedback';
-import { initLayout } from './ui/layout';
-import { SettingsState } from './state/settingsState';
-import { MergeState } from './state/mergeState';
-import { CompressState } from './state/compressState';
-import { LogState } from './state/logState';
+// Тонкий entry-point — только собирает UI-рефы, вызывает контроллер приложения
+// и регистрирует модалку подтверждения (модалке передаём простую callback,
+// которая не знает ничего о внутренностях приложения — она просто эмитит событие).
 import { getMainUiRefs } from '../types/ui';
-
+import { initConfirmClearModal } from './ui/confirmClear';
+import { eventBus } from './app/eventBus';
+import { initApp } from './app/appController';
 import * as pdfjsLib from 'pdfjs-dist';
 import 'pdfjs-dist/build/pdf.worker.mjs';
 
 (window as any).pdfjsLib = pdfjsLib;
 
-type ElectronAPI = Window['electronAPI'];
+document.addEventListener('DOMContentLoaded', async () => {
+  const ui = getMainUiRefs();
 
-(() => {
-  function ensurePdfJsWorker() {
-    try {
-      const pdfjs = (window as any).pdfjsLib;
-      if (pdfjs && pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
-        console.debug('[pdfjs] workerSrc set');
-      }
-    } catch (e) {
-      console.warn('[pdfjs] init error', e);
-    }
+  // Инициализируем контроллер приложения (внутри он создаст состояния и режимы)
+  try {
+    // initApp возвращает API, но index.ts ничего про содержимое не знает
+    await initApp(ui, (window as any).electronAPI);
+  } catch (e) {
+    console.error('initApp error', e);
   }
 
-  const electronAPI: ElectronAPI = window.electronAPI;
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const ui = getMainUiRefs();
-
-    // Лог
-    const logState = new LogState({
-      logArea: ui.logArea,
-      electronAPI,
-    });
-    const log = (message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') =>
-      logState.log(message, level);
-
-    // Spinner
-    const spinnerController = createSpinnerController({
-      getControls: () => [
-        ui.merge.btnMain,
-        ui.merge.btnInsert,
-        ui.merge.btnOutput,
-        ui.merge.btnRun,
-        ui.merge.btnOpenOutput,
-        ui.btnClearAllSettings,
-        ui.compress.btnCompress,
-        ui.compress.btnCompressRun,
-        ui.feedback.btnSendFeedback,
-        ui.settings.btnCheckUpdate,
-        ui.settings.btnUpdateApp,
-        document.getElementById('btn-open-log') as HTMLButtonElement | null,
-      ],
-    });
-    const setBusy = (busy: boolean) => spinnerController.setBusy(busy);
-
-    // SettingsState + MergeState + CompressState
-    const settingsState = new SettingsState({
-      electronAPI,
-      onSettingsChanged: (s) => {
-        // Папки merge
-        ui.merge.labelMain.value = s.mainFolder || 'Не выбрана';
-        ui.merge.labelMain.style.color = s.mainFolder ? '' : '#6b7280';
-
-        ui.merge.labelInsert.value = s.insertFolder || 'Не выбрана';
-        ui.merge.labelInsert.style.color = s.insertFolder ? '' : '#6b7280';
-
-        ui.merge.labelOutput.value = s.outputFolder || 'Не выбрана';
-        ui.merge.labelOutput.style.color = s.outputFolder ? '' : '#6b7280';
-
-        // Рекурсия
-        ui.merge.chkMainRecursive.checked = s.mainRecursive;
-        ui.merge.chkInsertRecursive.checked = s.insertRecursive;
-
-        // Compress
-        if (ui.compress.labelCompress) {
-          ui.compress.labelCompress.value = s.compressInputFolder || 'Не выбрана';
-          ui.compress.labelCompress.style.color = s.compressInputFolder ? '' : '#6b7280';
-        }
-        if (ui.compress.labelCompressOutput) {
-          ui.compress.labelCompressOutput.value = s.compressOutputFolder || 'Не выбрана';
-          ui.compress.labelCompressOutput.style.color = s.compressOutputFolder ? '' : '#6b7280';
-        }
-        if (ui.settings.settingCompressQuality && s.compressQuality) {
-          ui.settings.settingCompressQuality.value = String(s.compressQuality);
-        }
-        if (ui.settings.settingThumbsEnabled && typeof s.thumbnailsEnabled === 'boolean') {
-          ui.settings.settingThumbsEnabled.checked = s.thumbnailsEnabled;
-        }
-        if (ui.settings.settingThumbSize && s.thumbnailSize) {
-          ui.settings.settingThumbSize.value = String(s.thumbnailSize);
-        }
-
-        // Кнопка «Открыть папку результата»
-        ui.merge.btnOpenOutput.disabled = !s.outputFolder;
-      },
-      onDictsChanged: (dicts) => {
-        ui.merge.statsZepb.textContent = Object.keys(dicts.zepbDict).length.toString();
-        ui.merge.statsNotif.textContent = Object.keys(dicts.insertDict).length.toString();
-      },
-    });
-
-    const mergeState = new MergeState({ settingsState });
-    const compressState = new CompressState({ settingsState });
-
-    const btnOpenLog = document.getElementById('btn-open-log') as HTMLButtonElement | null;
-    if (btnOpenLog) {
-      btnOpenLog.addEventListener('click', () => {
-        electronAPI.openLogWindow().catch(() => {
-          // игнорируем ошибку, максимум можно вывести popup
-        });
-      });
-    }
-
-    // Тема
-    initTheme(ui.settings.themeToggleCheckbox, electronAPI);
-
-    // Layout (переключение режимов + resize compress-таблицы)
-    const layout = initLayout({
-      navModeMerge: ui.nav.navModeMerge,
-      navModeCompress: ui.nav.navModeCompress,
-      navModeSettings: ui.nav.navModeSettings,
-      contentMerge: ui.content.modeMergeContent,
-      contentCompress: ui.content.modeCompressContent,
-      contentSettings: ui.content.settingsContent,
-      compressControlsContainer: ui.compress.compressControlsContainer,
-    });
-
-    setTimeout(() => {
-      try {
-        ensurePdfJsWorker();
-      } catch {}
-    }, 400);
-
-    settingsState.load().catch(console.error);
-
-    initMergeMode({
-      electronAPI,
-      setBusy,
-      log,
-      getSettings: () => mergeState.getSnapshot(),
-      updateSettings: (patch) => {
-        mergeState.update(patch, { save: true });
-      },
-      ui: ui.merge,
-    });
-
-    initCompressMode({
-      electronAPI,
-      setBusy,
-      log,
-      getSettings: () => compressState.getSnapshot(),
-      updateSettings: (patch) => {
-        compressState.update(patch, { save: true });
-      },
-      ui: ui.compress,
-    });
-
-    initUpdates({
-      electronAPI,
-      btnCheckUpdate: ui.settings.btnCheckUpdate,
-      btnUpdateApp: ui.settings.btnUpdateApp,
-      updateStatusSpan: ui.settings.updateStatusSpan,
-      updateNotification: ui.updates.updateNotification,
-      updateNotificationText: ui.updates.updateNotificationText,
-      btnUpdatePopup: ui.updates.btnUpdatePopup,
-      btnDismissPopup: ui.updates.btnDismissPopup,
-    });
-
-    initFeedback({
-      electronAPI,
-      btnSendFeedback: ui.feedback.btnSendFeedback,
-      feedbackTypeSelect: ui.feedback.feedbackTypeSelect,
-      feedbackMessageTextarea: ui.feedback.feedbackMessageTextarea,
-      feedbackIncludeLogCheckbox: ui.feedback.feedbackIncludeLogCheckbox,
-      feedbackStatusSpan: ui.feedback.feedbackStatusSpan,
-      logArea: ui.logArea,
-    });
-
-    layout.showMode('merge');
+  // Регистрируем модалку очистки и передаём ей callback,
+  // который НЕ выполняет очистку напрямую — он только эмитит событие.
+  // Таким образом модалка остаётся UI-only, а обработка события делегирована контроллеру.
+  initConfirmClearModal({
+    triggerButton: ui.btnClearAllSettings,
+    onConfirm: async () => {
+      // Здесь нет логики очистки настроек, только публикация события.
+      eventBus.emit('settings:clear:requested');
+    },
   });
-})();
+});
