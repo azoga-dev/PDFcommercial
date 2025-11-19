@@ -35,6 +35,12 @@ interface MergeModeDeps {
   ui: MergeUiRefs;
 }
 
+/** API, который возвращает initMergeMode для внешней подписки (аналогично CompressModeApi). */
+export interface MergeModeApi {
+  onDicts: (cb: (dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void) => void;
+  clearMergeUi?: () => void;
+}
+
 interface UnmatchedItem {
   type: 'notif' | 'zepb';
   code: string;
@@ -49,39 +55,48 @@ export function initMergeMode({
   getSettings,
   updateSettings,
   ui,
-}: MergeModeDeps) {
-  const btnMain = document.getElementById('btn-main') as HTMLButtonElement;
-  const btnInsert = document.getElementById('btn-insert') as HTMLButtonElement;
-  const btnOutput = document.getElementById('btn-output') as HTMLButtonElement;
-  const btnRun = document.getElementById('btn-run') as HTMLButtonElement;
-  const btnOpenOutput = document.getElementById('btn-open-output') as HTMLButtonElement | null;
-  const btnOpenReport = document.getElementById('btn-open-report') as HTMLButtonElement | null;
-
-  const labelMain = document.getElementById('label-main') as HTMLInputElement;
-  const labelInsert = document.getElementById('label-insert') as HTMLInputElement;
-  const labelOutput = document.getElementById('label-output') as HTMLInputElement;
-
-  const chkMainRecursive = document.getElementById('chk-main-recursive') as HTMLInputElement;
-  const chkInsertRecursive = document.getElementById('chk-insert-recursive') as HTMLInputElement;
-
-  const statsOutput = document.getElementById('stats-output') as HTMLSpanElement;
-  const statsStatus = document.getElementById('stats-status') as HTMLSpanElement;
-  const statsResults = document.getElementById('stats-results') as HTMLDivElement;
-  const statsSuccess = document.getElementById('stats-success') as HTMLSpanElement;
-  const statsSkipped = document.getElementById('stats-skipped') as HTMLSpanElement;
-  const statsTotal = document.getElementById('stats-total') as HTMLSpanElement;
-  const progressBarFill = document.getElementById('progress-bar-fill') as HTMLDivElement;
-
-  const unmatchedBlock = document.getElementById('unmatched-block') as HTMLDivElement | null;
-  const unmatchedTableBody = document.querySelector('#unmatched-table tbody') as HTMLTableSectionElement | null;
-  const unmatchedSearch = document.getElementById('unmatched-search') as HTMLInputElement | null;
-  const unmatchedFilter = document.getElementById('unmatched-filter-type') as HTMLSelectElement | null;
-  const unmatchedExportBtn = document.getElementById('unmatched-export') as HTMLButtonElement | null;
-  const unmatchedClearBtn = document.getElementById('unmatched-clear') as HTMLButtonElement | null;
-  const unmatchedCountBadge = document.getElementById('unmatched-count-badge') as HTMLSpanElement | null;
-  const unmatchedEmpty = document.getElementById('unmatched-empty') as HTMLDivElement | null;
-
+}: MergeModeDeps): MergeModeApi {
+  const{
+    btnMain,
+    btnInsert,
+    btnOutput,
+    btnRun,
+    btnOpenOutput,
+    labelMain,
+    labelInsert,
+    labelOutput,
+    chkMainRecursive,
+    chkInsertRecursive,
+    statsOutput,
+    statsStatus,  
+    statsResults,
+    statsSuccess,
+    statsSkipped,
+    statsTotal,
+    progressBarFill,
+    unmatchedBlock,
+    unmatchedTableBody,
+    unmatchedSearch,
+    unmatchedFilter,
+    unmatchedExportBtn,
+    unmatchedClearBtn,
+    unmatchedCountBadge,
+    unmatchedEmpty,
+  } = ui;
+   
   let unmatchedItems: UnmatchedItem[] = [];
+
+  // Внутренний список подписчиков на обновление dicts
+  const dictListeners: Array<(dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void> = [];
+  function emitDicts(payload: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) {
+    for (const cb of dictListeners) {
+      try {
+        cb(payload);
+      } catch (e) {
+        console.error('emitDicts listener error', e);
+      }
+    }
+  }
 
   const initFromSettings = () => {
     const s = getSettings();
@@ -104,6 +119,7 @@ export function initMergeMode({
   initFromSettings();
 
   function updateFolderLabel(el: HTMLInputElement, folder: string | null) {
+    if (!el) return;
     el.value = folder || 'Не выбрана';
     el.style.color = folder ? '' : '#6b7280';
   }
@@ -280,7 +296,6 @@ export function initMergeMode({
 
       if (registry) {
         updateSettings({ lastReportPath: registry });
-        if (btnOpenReport) btnOpenReport.disabled = false;
         log(`Реестр сформирован: ${registry}`, 'info');
       }
 
@@ -320,9 +335,9 @@ export function initMergeMode({
 
         try {
           const dict = await electronAPI.buildDict('zepb', folder, chkMainRecursive.checked);
-          updateDicts?.({ zepbDict: dict });
+          emitDicts({ zepbDict: dict }); // эмитим вместо вызова внешнего updateDicts
         } catch {
-          updateDicts?.({ zepbDict: {} });
+          emitDicts({ zepbDict: {} });
         }
 
         updateSettings({
@@ -351,9 +366,9 @@ export function initMergeMode({
 
         try {
           const dict = await electronAPI.buildDict('insert', folder, chkInsertRecursive.checked);
-          updateDicts?.({ insertDict: dict });
+          emitDicts({ insertDict: dict }); // эмитим вместо вызова внешнего updateDicts
         } catch {
-          updateDicts?.({ insertDict: {} });
+          emitDicts({ insertDict: {} });
         }
 
         updateSettings({
@@ -395,18 +410,6 @@ export function initMergeMode({
       }
       const ok = await electronAPI.openFolder(s.outputFolder);
       if (!ok) alert(`Не удалось открыть папку:\n${s.outputFolder}`);
-    });
-  }
-
-  if (btnOpenReport) {
-    btnOpenReport.addEventListener('click', async () => {
-      const s = getSettings();
-      if (!s.lastReportPath) {
-        showPopup('Реестр ещё не сформирован');
-        return;
-      }
-      const folder = s.lastReportPath.replace(/[/\\][^/\\]+$/, '');
-      await electronAPI.openFolder(folder);
     });
   }
 
@@ -467,4 +470,23 @@ export function initMergeMode({
 
   updateStats();
   checkReady();
+
+  /** Очистка только UI merge (используется в общей кнопке сброса). */
+  function clearMergeUi() {
+    updateFolderLabel(labelMain, null);
+    updateFolderLabel(labelInsert, null);
+    updateFolderLabel(labelOutput, null);
+    unmatchedItems = [];
+    renderUnmatched();
+    statsOutput.textContent = '0';
+    statsResults.style.display = 'none';
+    progressBarFill.style.width = '0%';
+  }
+
+  return {
+    onDicts: (cb) => {
+      dictListeners.push(cb);
+    },
+    clearMergeUi,
+  };
 }

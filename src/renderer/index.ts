@@ -54,7 +54,7 @@ type ElectronAPI = Window['electronAPI'];
         ui.merge.btnOutput,
         ui.merge.btnRun,
         ui.merge.btnOpenOutput,
-        ui.merge.btnClearSettings,
+        ui.btnClearAllSettings,
         ui.compress.btnCompress,
         ui.compress.btnCompressRun,
         ui.feedback.btnSendFeedback,
@@ -153,9 +153,6 @@ type ElectronAPI = Window['electronAPI'];
       updateSettings: (patch) => {
         mergeState.update(patch, { save: true });
       },
-      updateDicts: (dicts) => {
-        settingsState.updateDicts(dicts);
-      },
       ui: ui.merge,
     });
 
@@ -167,7 +164,6 @@ type ElectronAPI = Window['electronAPI'];
       updateSettings: (patch) => {
         compressState.update(patch, { save: true });
       },
-      // новый параметр ui
       ui: ui.compress,
     });
 
