@@ -1,4 +1,5 @@
 import { showPopup } from '../ui/popup';
+import { initConfirmClearModal } from '../ui/confirmClear';
 
 type ElectronAPICompress = Pick<
   Window['electronAPI'],
@@ -568,30 +569,32 @@ export function initCompressMode({ electronAPI, setBusy, log, getSettings, updat
   }
 
   if (btnCompressClear) {
-    btnCompressClear.addEventListener('click', async () => {
-      if (!confirm('Очистить настройки сжатия?')) return;
+    initConfirmClearModal({
+      triggerButton: btnCompressClear,
+      async onConfirm() {
+        // Здесь та же логика, что была после confirm(...)
+        droppedFiles = [];
+        compressDropped = [];
 
-      droppedFiles = [];
-      compressDropped = [];
+        updateFolderLabel(labelCompress, null);
+        updateFolderLabel(labelCompressOutput, null);
+        updateCompressDnDState();
 
-      updateFolderLabel(labelCompress, null);
-      updateFolderLabel(labelCompressOutput, null);
-      updateCompressDnDState();
+        updateSettings({
+          compressInputFolder: null,
+          compressOutputFolder: null,
+          lastSelectedCompress: null,
+          lastSelectedCompressOutputFolder: null,
+          compressQuality: 30,
+          thumbnailsEnabled: true,
+          thumbnailSize: 128,
+        });
 
-      updateSettings({
-        compressInputFolder: null,
-        compressOutputFolder: null,
-        lastSelectedCompress: null,
-        lastSelectedCompressOutputFolder: null,
-        compressQuality: 30,
-        thumbnailsEnabled: true,
-        thumbnailSize: 128,
-      });
-
-      clearCompressTable();
-      log('Настройки сжатия очищены', 'warning');
-      showPopup('Настройки сжатия очищены', 4000);
-      updateCompressReady();
+        clearCompressTable();
+        log('Настройки сжатия очищены', 'warning');
+        showPopup('Настройки сжатия очищены', 4000);
+        updateCompressReady();
+      },
     });
   }
 

@@ -117,7 +117,7 @@ type ElectronAPI = Window['electronAPI'];
     const compressState = new CompressState({ settingsState });
 
     async function performClearSettingsAndUi() {
-      await settingsState.clearAll();
+      await settingsState.clearMergeOnly();
 
       if (ui.unmatched.unmatchedTableBody) ui.unmatched.unmatchedTableBody.innerHTML = '';
       if (ui.unmatched.unmatchedBlock) ui.unmatched.unmatchedBlock.style.display = 'none';

@@ -156,6 +156,45 @@ export class SettingsState {
     await this.electronAPI.saveSettings(this.settings).catch(() => false);
   }
 
+    async clearMergeOnly() {
+    const s = this.settings;
+    this.settings = {
+      ...s,
+      mainFolder: '',
+      insertFolder: '',
+      outputFolder: '',
+      mainRecursive: true,
+      insertRecursive: true,
+      lastSelectedMainFolder: null,
+      lastSelectedInsertFolder: null,
+      lastSelectedOutputFolder: null,
+      lastReportPath: null,
+    };
+    this.zepbDict = {};
+    this.insertDict = {};
+
+    this.onSettingsChanged?.(this.getSettings());
+    this.onDictsChanged?.(this.getDicts());
+    await this.save();
+  }
+
+  async clearCompressOnly() {
+    const s = this.settings;
+    this.settings = {
+      ...s,
+      compressInputFolder: null,
+      compressOutputFolder: null,
+      lastSelectedCompress: null,
+      lastSelectedCompressOutputFolder: null,
+      compressQuality: 30,
+      thumbnailsEnabled: true,
+      thumbnailSize: 128,
+    };
+
+    this.onSettingsChanged?.(this.getSettings());
+    await this.save();
+  }
+
   /** Очистить настройки и словари. */
   async clearAll() {
     this.settings = {

@@ -117,7 +117,7 @@ export function getMainUiRefs(): MainUiRefs {
   const btnOutput = mustGet<HTMLButtonElement>('btn-output');
   const btnRun = mustGet<HTMLButtonElement>('btn-run');
   const btnOpenOutput = mustGet<HTMLButtonElement>('btn-open-output');
-  const btnClearSettings = document.getElementById('btn-clear-settings') as HTMLButtonElement | null;
+  const btnClearSettings = mustGet<HTMLButtonElement>('btn-clear-settings');
 
   const labelMain = mustGet<HTMLInputElement>('label-main');
   const labelInsert = mustGet<HTMLInputElement>('label-insert');
