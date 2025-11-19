@@ -124,8 +124,11 @@ declare global {
       /** Завершить приложение и установить обновление. */
       quitAndInstall: () => Promise<void>;
 
-      /** Подсчитать количество PDF-файлов в папке. */
-      countPdfFilesInFolder: (folderPath: string) => Promise<number>;
+      /** Подсчитать количество PDF-файлов в папке.
+       *  По умолчанию рекурсивно. Второй аргумент recursive?: boolean позволяет
+       *  запросить нерекурсивный подсчёт.
+       */
+      countPdfFilesInFolder: (folderPath: string, recursive?: boolean) => Promise<number>;
 
       /** Добавить строку в лог (и, возможно, отправить main-процессу). */
       appendLog: (line: string) => void;

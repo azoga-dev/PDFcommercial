@@ -6,7 +6,7 @@ type ElectronAPIMerge = Pick<
   | 'selectFolder'
   | 'buildDict'
   | 'countFilesInFolder'
-  | 'countPdfFilesInFolder' // добавлено: метод для подсчёта PDF-файлов
+  | 'countPdfFilesInFolder'
   | 'mergePDFs'
   | 'cancelMerge'
   | 'openFolder'
@@ -68,8 +68,8 @@ export function initMergeMode({
     labelOutput,
     chkMainRecursive,
     chkInsertRecursive,
-    statsZepb,    // добавлено в деструктуризацию
-    statsNotif,   // добавлено в деструктуризацию
+    statsZepb,
+    statsNotif,
     statsOutput,
     statsStatus,
     statsResults,
@@ -89,7 +89,7 @@ export function initMergeMode({
 
   let unmatchedItems: UnmatchedItem[] = [];
 
-  // Внутренний список подписчиков на обновление dicts
+  // Список подписчиков на обновление dicts
   const dictListeners: Array<(dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void> = [];
   function emitDicts(payload: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) {
     for (const cb of dictListeners) {
@@ -152,7 +152,6 @@ export function initMergeMode({
   async function checkReady() {
     try {
       const s = getSettings();
-      // если не выбраны все папки — отключаем
       if (!s.mainFolder || !s.insertFolder || !s.outputFolder) {
         if (btnRun) btnRun.disabled = true;
         if (statsStatus) {
@@ -162,13 +161,12 @@ export function initMergeMode({
         return;
       }
 
-      // проверим количество PDF в main и insert (используем explicit API)
+      // теперь передаём флаги рекурсии в countPdfFilesInFolder
       const [mainCount, insertCount] = await Promise.all([
-        electronAPI.countPdfFilesInFolder(s.mainFolder).catch(() => 0),
-        electronAPI.countPdfFilesInFolder(s.insertFolder).catch(() => 0),
+        electronAPI.countPdfFilesInFolder(s.mainFolder, !!s.mainRecursive).catch(() => 0),
+        electronAPI.countPdfFilesInFolder(s.insertFolder, !!s.insertRecursive).catch(() => 0),
       ]);
 
-      // обновим подсказку внизу и статус
       if (mainCount <= 0 || insertCount <= 0) {
         if (btnRun) btnRun.disabled = true;
         if (statsStatus) {
@@ -183,11 +181,8 @@ export function initMergeMode({
         }
       }
 
-      // обновим видимую статистику результатов (если есть)
-      try {
-        if (statsZepb) statsZepb.textContent = String(mainCount);
-        if (statsNotif) statsNotif.textContent = String(insertCount);
-      } catch {}
+      if (statsZepb) statsZepb.textContent = String(mainCount);
+      if (statsNotif) statsNotif.textContent = String(insertCount);
     } catch (e) {
       console.error('[mergeMode] checkReady error', e);
       if (btnRun) btnRun.disabled = true;
@@ -339,11 +334,10 @@ export function initMergeMode({
         showPopup('Объединение завершено успешно.', 8000);
       }
 
-      if (statsSuccess) statsSuccess.textContent = String(processed || 0);
-      if (statsSkipped) statsSkipped.textContent = String(skipped || 0);
-      if (statsTotal) statsTotal.textContent = String(total || 0);
+      if (statsSuccess) statsSuccess.textContent = processed.toString();
+      if (statsSkipped) statsSkipped.textContent = skipped.toString();
+      if (statsTotal) statsTotal.textContent = total.toString();
       if (statsResults) statsResults.style.display = 'flex';
-
       updateStats();
     } catch (err) {
       console.error('onMergeComplete handler error', err);
@@ -376,8 +370,13 @@ export function initMergeMode({
         updateSettings({
           mainFolder: folder,
           lastSelectedMainFolder: folder,
-          mainRecursive: chkMainRecursive.checked,
         });
+
+        // пересчёт количества PDF с учётом текущего флага рекурсии
+        try {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkMainRecursive && chkMainRecursive.checked)).catch(() => 0);
+          if (statsZepb) statsZepb.textContent = String(pdfCount);
+        } catch {}
       }
       updateStats();
       await checkReady();
@@ -409,8 +408,13 @@ export function initMergeMode({
         updateSettings({
           insertFolder: folder,
           lastSelectedInsertFolder: folder,
-          insertRecursive: chkInsertRecursive.checked,
         });
+
+        // пересчёт количества PDF с учётом текущего флага рекурсии
+        try {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkInsertRecursive && chkInsertRecursive.checked)).catch(() => 0);
+          if (statsNotif) statsNotif.textContent = String(pdfCount);
+        } catch {}
       }
       updateStats();
       await checkReady();
@@ -426,15 +430,13 @@ export function initMergeMode({
     if (folder) {
       updateFolderLabel(labelOutput, folder);
       if (btnOpenOutput) btnOpenOutput.disabled = false;
-      updateStats();
-
       updateSettings({
         outputFolder: folder,
         lastSelectedOutputFolder: folder,
       });
+      updateStats();
+      await checkReady();
     }
-    // после выбора папки результатов — проверим готовность
-    await checkReady();
   });
 
   if (btnOpenOutput) {
@@ -450,7 +452,6 @@ export function initMergeMode({
   }
 
   btnRun.addEventListener('click', async () => {
-    // Перед стартом ещё раз гарантируем, что в папках есть PDF
     await checkReady();
     if (btnRun && btnRun.disabled) {
       showPopup('Для запуска объединения в папках должны быть PDF‑файлы.', 6000);
@@ -511,11 +512,42 @@ export function initMergeMode({
     });
   }
 
-  // начальная проверка готовности
-  checkReady().catch(() => {});
+  // Обработчики изменения чекбоксов рекурсии: сохраняем флаг и пересчитываем PDF в соответствующей папке
+  if (chkMainRecursive) {
+    chkMainRecursive.addEventListener('change', async () => {
+      try {
+        updateSettings({ mainRecursive: chkMainRecursive.checked });
+        const s = getSettings();
+        if (s.mainFolder) {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.mainFolder).catch(() => 0);
+          if (statsZepb) statsZepb.textContent = String(pdfCount);
+        }
+        await checkReady();
+      } catch (e) {
+        console.error('[mergeMode] chkMainRecursive change handler error', e);
+      }
+    });
+  }
 
-  updateStats();
+  if (chkInsertRecursive) {
+    chkInsertRecursive.addEventListener('change', async () => {
+      try {
+        updateSettings({ insertRecursive: chkInsertRecursive.checked });
+        const s = getSettings();
+        if (s.insertFolder) {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.insertFolder).catch(() => 0);
+          if (statsNotif) statsNotif.textContent = String(pdfCount);
+        }
+        await checkReady();
+      } catch (e) {
+        console.error('[mergeMode] chkInsertRecursive change handler error', e);
+      }
+    });
+  }
+
+  // начальная проверка готовности и статистики
   checkReady().catch(() => {});
+  updateStats();
 
   /** Очистка только UI merge (используется в общей кнопке сброса). */
   function clearMergeUi() {

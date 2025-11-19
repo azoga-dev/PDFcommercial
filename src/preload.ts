@@ -33,9 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   countFilesInFolder: (folderPath: string) =>
     ipcRenderer.invoke('count-files-in-folder', folderPath),
 
-  /** Подсчитать количество PDF-файлов в папке (рекурсивно). */
-  countPdfFilesInFolder: (folderPath: string) =>
-    ipcRenderer.invoke('count-pdf-files-in-folder', folderPath),
+  /** Подсчитать количество PDF-файлов в папке (рекурсивно по умолчанию).
+   *  Можно передать второй аргумент recursive=false для нерекурсивного подсчёта.
+   */
+  countPdfFilesInFolder: (folderPath: string, recursive = true) =>
+    ipcRenderer.invoke('count-pdf-files-in-folder', folderPath, recursive),
 
   /** Открыть папку в системном файловом менеджере. */
   openFolder: (folderPath: string) =>

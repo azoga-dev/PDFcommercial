@@ -97,32 +97,42 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
     }
   });
 
-  // Подсчитать количество PDF-файлов в папке (рекурсивно)
+  // Подсчитать количество PDF-файлов в папке
+  // теперь поддерживается необязательный флаг recursive (по умолчанию true),
+  // чтобы UI мог запрашивать как рекурсивный, так и нерекурсивный подсчёт.
   ipcMain.handle(
     'count-pdf-files-in-folder',
-    async (_e, folderPath: string) => {
-      const countPdf = async (dir: string): Promise<number> => {
-        let total = 0;
-        try {
-          const entries = await fsp.readdir(dir, { withFileTypes: true });
-          for (const ent of entries) {
-            const full = path.join(dir, ent.name);
-            if (ent.isFile()) {
-              if (ent.name.toLowerCase().endsWith('.pdf')) total++;
-            } else if (ent.isDirectory()) {
-              total += await countPdf(full);
-            }
-          }
-        } catch {
-          return 0;
-        }
-        return total;
-      };
-
+    async (_e, folderPath: string, recursive = true) => {
+      if (!folderPath) return 0;
       try {
-        if (!folderPath) return 0;
         const st = await fsp.stat(folderPath).catch(() => null);
         if (!st || !st.isDirectory()) return 0;
+
+        if (!recursive) {
+          // Нерекурсивный подсчёт: только файлы в указанной папке
+          const entries = await fsp.readdir(folderPath, { withFileTypes: true });
+          return entries.filter((ent) => ent.isFile() && ent.name.toLowerCase().endsWith('.pdf')).length;
+        }
+
+        // Рекурсивный подсчёт
+        const countPdf = async (dir: string): Promise<number> => {
+          let total = 0;
+          try {
+            const entries = await fsp.readdir(dir, { withFileTypes: true });
+            for (const ent of entries) {
+              const full = path.join(dir, ent.name);
+              if (ent.isFile()) {
+                if (ent.name.toLowerCase().endsWith('.pdf')) total++;
+              } else if (ent.isDirectory()) {
+                total += await countPdf(full);
+              }
+            }
+          } catch {
+            return 0;
+          }
+          return total;
+        };
+
         return await countPdf(folderPath);
       } catch {
         return 0;
