@@ -42,9 +42,9 @@ interface CompressDroppedFile {
   error?: string;
 }
 
+/** Публичное API, чтобы index.ts мог очистить compress‑UI при общем сбросе. */
 export interface CompressModeApi {
-  /** Очистка только compress‑части состояния + UI. */
-  clearCompress: () => void;
+  clearCompressUi: () => void;
 }
 
 export function initCompressMode({
@@ -59,7 +59,6 @@ export function initCompressMode({
     btnCompress,
     btnCompressOutput,
     btnCompressRun,
-    // btnCompressClear — модалка вешается снаружи (index.ts)
     labelCompress,
     labelCompressOutput,
     selectCompressQuality,
@@ -77,13 +76,11 @@ export function initCompressMode({
     cdBtnRun,
   } = ui;
 
-  // --- Локальное состояние только для UI ---
   let droppedFiles: string[] = [];
   let isCompressRunning = false;
   let cancelCompressRequested = false;
   let compressDropped: CompressDroppedFile[] = [];
 
-  // --- Инициализация UI из настроек ---
   const applySettingsToUi = () => {
     const s = getSettings();
 
@@ -112,8 +109,6 @@ export function initCompressMode({
   };
 
   applySettingsToUi();
-
-  // --- helpers ---
 
   function updateFolderLabel(el: HTMLInputElement | null, folder: string | null) {
     if (!el) return;
@@ -176,8 +171,6 @@ export function initCompressMode({
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
     return `${Math.round(bytes / (1024 * 1024))} MB`;
   }
-
-  // --- Drag & Drop миниатюры ---
 
   async function buildPdfThumb(target: CompressDroppedFile): Promise<void> {
     const pdfjs = (window as any).pdfjsLib;
@@ -390,8 +383,6 @@ export function initCompressMode({
     }
   }
 
-  // --- обработчики кнопок выбора папок ---
-
   if (btnCompress) {
     btnCompress.addEventListener('click', async () => {
       const orig = btnCompress.innerHTML;
@@ -486,21 +477,12 @@ export function initCompressMode({
     });
   }
 
-  // --- запуск сжатия основной кнопкой ---
-
   if (btnCompressRun) {
     btnCompressRun.addEventListener('click', async () => {
       const sStart = getSettings();
 
       if (!labelCompress || !labelCompress.value || !sStart.compressOutputFolder) {
         showPopup('Выберите входную и выходную папки для сжатия', 5000);
-        return;
-      }
-
-      if (!sStart.compressOutputFolder) {
-        const msg = 'Папка результатов не выбрана';
-        log(msg, 'warning');
-        showPopup('Выберите папку результатов (выход)', 6000);
         return;
       }
 
@@ -576,8 +558,6 @@ export function initCompressMode({
     });
   }
 
-  // --- "Сжать добавленные" из DnD‑галереи ---
-
   if (cdBtnRun) {
     cdBtnRun.addEventListener('click', async () => {
       if (!compressDropped.length) return;
@@ -621,8 +601,6 @@ export function initCompressMode({
       }
     });
   }
-
-  // --- события compress-progress / complete ---
 
   electronAPI.onCompressProgress((_, payload) => {
     try {
@@ -708,8 +686,6 @@ export function initCompressMode({
     }
   });
 
-  // --- кнопка Cancel (общая) ---
-
   const cancelBtn = document.getElementById('btn-cancel-op') as HTMLButtonElement | null;
   if (cancelBtn) {
     cancelBtn.addEventListener('click', async (e) => {
@@ -735,7 +711,6 @@ export function initCompressMode({
     });
   }
 
-  // --- init ---
   initCompressDropzone();
   updateCompressReady();
   try {
@@ -747,30 +722,21 @@ export function initCompressMode({
     } catch {}
   });
 
-  /** Публичное API для index.ts — вызывается из модалки. */
-  function clearCompress() {
+  /** Очистка только UI compress (используется в общей кнопке сброса). */
+  function clearCompressUi() {
     droppedFiles = [];
     compressDropped = [];
-
     updateFolderLabel(labelCompress, null);
     updateFolderLabel(labelCompressOutput, null);
     updateCompressDnDState();
-
-    updateSettings({
-      compressInputFolder: null,
-      compressOutputFolder: null,
-      lastSelectedCompress: null,
-      lastSelectedCompressOutputFolder: null,
-      compressQuality: 30,
-      thumbnailsEnabled: true,
-      thumbnailSize: 128,
-    });
-
     clearCompressTable();
-    log('Настройки сжатия очищены', 'warning');
-    showPopup('Настройки сжатия очищены', 4000);
+    setCompressStatus('idle', 'Ожидание');
+    if (cdCount) {
+      cdCount.style.display = 'none';
+      cdCount.textContent = '0';
+    }
     updateCompressReady();
   }
 
-  return { clearCompress };
+  return { clearCompressUi };
 }

@@ -24,8 +24,6 @@ export interface MergeUiRefs {
   btnOutput: HTMLButtonElement;
   btnRun: HTMLButtonElement;
   btnOpenOutput: HTMLButtonElement;
-  btnClearSettings: HTMLButtonElement | null;
-  btnOpenReport: HTMLButtonElement | null;
 
   labelMain: HTMLInputElement;
   labelInsert: HTMLInputElement;
@@ -58,7 +56,6 @@ export interface CompressUiRefs {
   btnCompress: HTMLButtonElement | null;
   btnCompressRun: HTMLButtonElement | null;
   btnCompressOutput: HTMLButtonElement | null;
-  btnCompressClear: HTMLButtonElement | null;
 
   labelCompress: HTMLInputElement | null;
   labelCompressOutput: HTMLInputElement | null;
@@ -128,6 +125,8 @@ export interface MainUiRefs {
   updates: UpdateNotificationUiRefs;
   unmatched: UnmatchedUiRefs;
   logArea: HTMLTextAreaElement | null;
+  /** Общая кнопка очистки настроек в сайдбаре. */
+  btnClearAllSettings: HTMLButtonElement | null;
 }
 
 /**
@@ -148,8 +147,6 @@ export function getMainUiRefs(): MainUiRefs {
   const btnOutput = mustGet<HTMLButtonElement>('btn-output');
   const btnRun = mustGet<HTMLButtonElement>('btn-run');
   const btnOpenOutput = mustGet<HTMLButtonElement>('btn-open-output');
-  const btnClearSettings = document.getElementById('btn-clear-settings') as HTMLButtonElement | null;
-  const btnOpenReport = document.getElementById('btn-open-report') as HTMLButtonElement | null;
 
   const labelMain = mustGet<HTMLInputElement>('label-main');
   const labelInsert = mustGet<HTMLInputElement>('label-insert');
@@ -193,7 +190,6 @@ export function getMainUiRefs(): MainUiRefs {
   const btnCompress = document.getElementById('btn-compress') as HTMLButtonElement | null;
   const btnCompressRun = document.getElementById('btn-compress-run') as HTMLButtonElement | null;
   const btnCompressOutput = document.getElementById('btn-compress-output') as HTMLButtonElement | null;
-  const btnCompressClear = document.getElementById('btn-compress-clear') as HTMLButtonElement | null;
 
   const labelCompress = document.getElementById('label-compress') as HTMLInputElement | null;
   const labelCompressOutput = document.getElementById('label-compress-output') as HTMLInputElement | null;
@@ -218,9 +214,10 @@ export function getMainUiRefs(): MainUiRefs {
   const unmatchedClearBtn = document.getElementById('unmatched-clear') as HTMLButtonElement | null;
   const unmatchedEmpty = document.getElementById('unmatched-empty') as HTMLDivElement | null;
 
-  // поля поиска/фильтра несшитых в merge‑режиме
   const unmatchedSearch = document.getElementById('unmatched-search') as HTMLInputElement | null;
   const unmatchedFilter = document.getElementById('unmatched-filter-type') as HTMLSelectElement | null;
+
+  const btnClearAllSettings = document.getElementById('btn-clear-all-settings') as HTMLButtonElement | null;
 
   return {
     nav: {
@@ -239,8 +236,6 @@ export function getMainUiRefs(): MainUiRefs {
       btnOutput,
       btnRun,
       btnOpenOutput,
-      btnClearSettings,
-      btnOpenReport,
       labelMain,
       labelInsert,
       labelOutput,
@@ -268,7 +263,6 @@ export function getMainUiRefs(): MainUiRefs {
       btnCompress,
       btnCompressRun,
       btnCompressOutput,
-      btnCompressClear,
       labelCompress,
       labelCompressOutput,
       selectCompressQuality,
@@ -317,6 +311,7 @@ export function getMainUiRefs(): MainUiRefs {
       unmatchedEmpty,
     },
     logArea,
+    btnClearAllSettings,
   };
 }
 

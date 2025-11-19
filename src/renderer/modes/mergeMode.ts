@@ -1,6 +1,4 @@
 import { showPopup } from '../ui/popup';
-import { initConfirmClearModal } from '../ui/confirmClear';
-import type { MergeUiRefs } from '../../types/ui';
 
 type ElectronAPIMerge = Pick<
   Window['electronAPI'],
@@ -34,7 +32,6 @@ interface MergeModeDeps {
   getSettings: () => MergeSettingsSnapshot;
   updateSettings: (patch: Partial<MergeSettingsSnapshot>) => void;
   updateDicts?: (dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void;
-  ui: MergeUiRefs;
 }
 
 interface UnmatchedItem {
@@ -51,42 +48,40 @@ export function initMergeMode({
   getSettings,
   updateSettings,
   updateDicts,
-  ui,
 }: MergeModeDeps) {
-  const {
-    btnMain,
-    btnInsert,
-    btnOutput,
-    btnRun,
-    btnOpenOutput,
-    btnClearSettings,
-    btnOpenReport,
-    labelMain,
-    labelInsert,
-    labelOutput,
-    chkMainRecursive,
-    chkInsertRecursive,
-    statsOutput,
-    statsStatus,
-    statsResults,
-    statsSuccess,
-    statsSkipped,
-    statsTotal,
-    progressBarFill,
-    unmatchedBlock,
-    unmatchedTableBody,
-    unmatchedSearch,
-    unmatchedFilter,
-    unmatchedExportBtn,
-    unmatchedClearBtn,
-    unmatchedCountBadge,
-    unmatchedEmpty,
-  } = ui;
+  const btnMain = document.getElementById('btn-main') as HTMLButtonElement;
+  const btnInsert = document.getElementById('btn-insert') as HTMLButtonElement;
+  const btnOutput = document.getElementById('btn-output') as HTMLButtonElement;
+  const btnRun = document.getElementById('btn-run') as HTMLButtonElement;
+  const btnOpenOutput = document.getElementById('btn-open-output') as HTMLButtonElement | null;
+  const btnOpenReport = document.getElementById('btn-open-report') as HTMLButtonElement | null;
 
-  // Локальное состояние только по unmatched
+  const labelMain = document.getElementById('label-main') as HTMLInputElement;
+  const labelInsert = document.getElementById('label-insert') as HTMLInputElement;
+  const labelOutput = document.getElementById('label-output') as HTMLInputElement;
+
+  const chkMainRecursive = document.getElementById('chk-main-recursive') as HTMLInputElement;
+  const chkInsertRecursive = document.getElementById('chk-insert-recursive') as HTMLInputElement;
+
+  const statsOutput = document.getElementById('stats-output') as HTMLSpanElement;
+  const statsStatus = document.getElementById('stats-status') as HTMLSpanElement;
+  const statsResults = document.getElementById('stats-results') as HTMLDivElement;
+  const statsSuccess = document.getElementById('stats-success') as HTMLSpanElement;
+  const statsSkipped = document.getElementById('stats-skipped') as HTMLSpanElement;
+  const statsTotal = document.getElementById('stats-total') as HTMLSpanElement;
+  const progressBarFill = document.getElementById('progress-bar-fill') as HTMLDivElement;
+
+  const unmatchedBlock = document.getElementById('unmatched-block') as HTMLDivElement | null;
+  const unmatchedTableBody = document.querySelector('#unmatched-table tbody') as HTMLTableSectionElement | null;
+  const unmatchedSearch = document.getElementById('unmatched-search') as HTMLInputElement | null;
+  const unmatchedFilter = document.getElementById('unmatched-filter-type') as HTMLSelectElement | null;
+  const unmatchedExportBtn = document.getElementById('unmatched-export') as HTMLButtonElement | null;
+  const unmatchedClearBtn = document.getElementById('unmatched-clear') as HTMLButtonElement | null;
+  const unmatchedCountBadge = document.getElementById('unmatched-count-badge') as HTMLSpanElement | null;
+  const unmatchedEmpty = document.getElementById('unmatched-empty') as HTMLDivElement | null;
+
   let unmatchedItems: UnmatchedItem[] = [];
 
-  // Инициализация UI из настроек
   const initFromSettings = () => {
     const s = getSettings();
 
@@ -102,7 +97,7 @@ export function initMergeMode({
     chkMainRecursive.checked = s.mainRecursive;
     chkInsertRecursive.checked = s.insertRecursive;
 
-    if (btnOpenOutput) btnOpenOutput.disabled = !s.outputFolder;
+    btnOpenOutput && (btnOpenOutput.disabled = !s.outputFolder);
   };
 
   initFromSettings();
@@ -458,7 +453,7 @@ export function initMergeMode({
       try {
         await electronAPI.cancelMerge();
         log('Запрошена отмена объединения', 'warning');
-        showPopup('Запрос отмены объединения отправлен', 4000);
+        showPopup('Запрос отправлен', 4000);
       } catch {
         showPopup('Ошибка отправки запроса отмены', 6000);
       } finally {
@@ -466,61 +461,6 @@ export function initMergeMode({
           btn.disabled = false;
         }, 1500);
       }
-    });
-  }
-
-  // Модалка очистки настроек merge — аналогично compressMode
-  if (btnClearSettings) {
-    initConfirmClearModal({
-      triggerButton: btnClearSettings,
-      async onConfirm() {
-        // очистка unmatched
-        unmatchedItems = [];
-        if (unmatchedTableBody) unmatchedTableBody.innerHTML = '';
-        if (unmatchedBlock) unmatchedBlock.style.display = 'none';
-        if (unmatchedCountBadge) unmatchedCountBadge.style.display = 'none';
-        if (unmatchedExportBtn) unmatchedExportBtn.disabled = true;
-        if (unmatchedClearBtn) unmatchedClearBtn.disabled = true;
-        if (unmatchedEmpty) unmatchedEmpty.style.display = 'block';
-
-        // сброс UI
-        labelMain.value = 'Не выбрана';
-        labelMain.style.color = '#6b7280';
-        labelInsert.value = 'Не выбрана';
-        labelInsert.style.color = '#6b7280';
-        labelOutput.value = 'Не выбрана';
-        labelOutput.style.color = '#6b7280';
-
-        chkMainRecursive.checked = true;
-        chkInsertRecursive.checked = true;
-
-        statsOutput.textContent = '0';
-        statsSuccess.textContent = '0';
-        statsSkipped.textContent = '0';
-        statsTotal.textContent = '0';
-        statsResults.style.display = 'none';
-        statsStatus.textContent = 'Выберите все папки';
-        statsStatus.className = 'status-not-ready';
-        progressBarFill.style.width = '0%';
-
-        // сброс настроек
-        updateSettings({
-          mainFolder: '',
-          insertFolder: '',
-          outputFolder: '',
-          mainRecursive: true,
-          insertRecursive: true,
-          lastSelectedMainFolder: null,
-          lastSelectedInsertFolder: null,
-          lastSelectedOutputFolder: null,
-          lastReportPath: null,
-        });
-
-        showPopup('Настройки сшивания очищены', 4000);
-        log('Настройки сшивания очищены', 'warning');
-        updateStats();
-        checkReady();
-      },
     });
   }
 
