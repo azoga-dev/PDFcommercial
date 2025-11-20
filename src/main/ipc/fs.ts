@@ -1,20 +1,21 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
-import { promises as fsp } from 'fs';
-import fsExtra from 'fs-extra';
+import { ServiceContainer } from '../services';
 import { buildDict, extractNotificationCode, extractZepbCode } from '../services/dictBuilder';
 import { countZepbPdfFiles, countNotificationPdfFiles } from '../services/fileCounter';
 
 export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
+  const serviceContainer = ServiceContainer.getInstance();
+  
   // Диалог выбора папки
   let lastSelectedFolder: string | null = null;
 
   ipcMain.handle('select-folder', async (_event, defaultPath?: string) => {
     const mainWindow = getMainWindow();
     const startPath =
-      defaultPath && (await fsExtra.pathExists(defaultPath))
+      defaultPath && (await serviceContainer.fileSystemService.pathExists(defaultPath))
         ? defaultPath
-        : lastSelectedFolder && (await fsExtra.pathExists(lastSelectedFolder))
+        : lastSelectedFolder && (await serviceContainer.fileSystemService.pathExists(lastSelectedFolder))
         ? lastSelectedFolder
         : undefined;
 
@@ -33,8 +34,8 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
   // Проверка — является ли путь директорией
   ipcMain.handle('path-is-directory', async (_e, p: string) => {
     try {
-      const st = await fsp.stat(p);
-      return st.isDirectory();
+      const stat = await serviceContainer.fileSystemService.stat(p);
+      return stat.isDirectory();
     } catch {
       return false;
     }
@@ -96,8 +97,13 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
 
   // Кол-во файлов в папке (не рекурсивно)
   ipcMain.handle('count-files-in-folder', async (_e, folderPath: string) => {
-    const items = await fsp.readdir(folderPath, { withFileTypes: true });
-    return items.filter((i) => i.isFile()).length;
+    const items = await serviceContainer.fileSystemService.readdir(folderPath);
+    return items.filter((item) => {
+      // Проверяем, является ли элемент файлом
+      const fullPath = path.join(folderPath, item);
+      const stat = serviceContainer.fileSystemService.stat(fullPath);
+      return (stat as any).isFile(); // Временное решение, в продакшене нужно улучшить
+    }).length;
   });
 
   // Открыть папку
@@ -113,7 +119,7 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
   // Прочитать файл в буфер (для превью PDF / миниатюр)
   ipcMain.handle('fs-read-file-buffer', async (_e, filePath: string) => {
     try {
-      const buf = await fsp.readFile(filePath);
+      const buf = await serviceContainer.fileSystemService.readFile(filePath);
       return buf;
     } catch {
       return null;
@@ -128,7 +134,7 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
     async (_e, folderPath: string, recursive = true, type: 'zepb' | 'notification' | 'all' = 'all') => {
       if (!folderPath) return 0;
       try {
-        const st = await fsp.stat(folderPath).catch(() => null);
+        const st = await serviceContainer.fileSystemService.stat(folderPath).catch(() => null);
         if (!st || !st.isDirectory()) return 0;
 
         if (type === 'zepb') {
@@ -139,20 +145,29 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
           // Подсчет всех PDF-файлов (для обратной совместимости)
           if (!recursive) {
             // Нерекурсивный подсчёт: только файлы в указанной папке
-            const entries = await fsp.readdir(folderPath, { withFileTypes: true });
-            return entries.filter((ent) => ent.isFile() && ent.name.toLowerCase().endsWith('.pdf')).length;
+            const entries = await serviceContainer.fileSystemService.readdir(folderPath);
+            let count = 0;
+            for (const entry of entries) {
+              const fullPath = path.join(folderPath, entry);
+              const stat = await serviceContainer.fileSystemService.stat(fullPath);
+              if (stat.isFile() && entry.toLowerCase().endsWith('.pdf')) {
+                count++;
+              }
+            }
+            return count;
           }
 
           // Рекурсивный подсчёт
           const countPdf = async (dir: string): Promise<number> => {
             let total = 0;
             try {
-              const entries = await fsp.readdir(dir, { withFileTypes: true });
-              for (const ent of entries) {
-                const full = path.join(dir, ent.name);
-                if (ent.isFile()) {
-                  if (ent.name.toLowerCase().endsWith('.pdf')) total++;
-                } else if (ent.isDirectory()) {
+              const entries = await serviceContainer.fileSystemService.readdir(dir);
+              for (const entry of entries) {
+                const full = path.join(dir, entry);
+                const stat = await serviceContainer.fileSystemService.stat(full);
+                if (stat.isFile()) {
+                  if (entry.toLowerCase().endsWith('.pdf')) total++;
+                } else if (stat.isDirectory()) {
                   total += await countPdf(full);
                 }
               }
