@@ -1,5 +1,41 @@
-/dist
-/node_modules
-/out
-/dist-electron-builder
-/copy-assets.js
+```
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+yarn.lock
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.out/
+.bundle/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+.nyc_output/
+```

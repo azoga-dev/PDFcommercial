@@ -126,9 +126,10 @@ declare global {
 
       /** Подсчитать количество PDF-файлов в папке.
        *  По умолчанию рекурсивно. Второй аргумент recursive?: boolean позволяет
-       *  запросить нерекурсивный подсчёт.
+       *  запросить нерекурсивный подсчёт. Третий аргумент type?: 'zepb' | 'notification' | 'all'
+       *  позволяет указать тип файлов для подсчёта.
        */
-      countPdfFilesInFolder: (folderPath: string, recursive?: boolean) => Promise<number>;
+      countPdfFilesInFolder: (folderPath: string, recursive?: boolean, type?: 'zepb' | 'notification' | 'all') => Promise<number>;
 
       /** Добавить строку в лог (и, возможно, отправить main-процессу). */
       appendLog: (line: string) => void;

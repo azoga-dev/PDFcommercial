@@ -161,10 +161,10 @@ export function initMergeMode({
         return;
       }
 
-      // теперь передаём флаги рекурсии в countPdfFilesInFolder
+      // теперь передаём флаги рекурсии и тип файла в countPdfFilesInFolder
       const [mainCount, insertCount] = await Promise.all([
-        electronAPI.countPdfFilesInFolder(s.mainFolder, !!s.mainRecursive).catch(() => 0),
-        electronAPI.countPdfFilesInFolder(s.insertFolder, !!s.insertRecursive).catch(() => 0),
+        electronAPI.countPdfFilesInFolder(s.mainFolder, !!s.mainRecursive, 'zepb').catch(() => 0),
+        electronAPI.countPdfFilesInFolder(s.insertFolder, !!s.insertRecursive, 'notification').catch(() => 0),
       ]);
 
       if (mainCount <= 0 || insertCount <= 0) {
@@ -372,9 +372,9 @@ export function initMergeMode({
           lastSelectedMainFolder: folder,
         });
 
-        // пересчёт количества PDF с учётом текущего флага рекурсии
+        // пересчёт количества PDF ЗЭПБ с учётом текущего флага рекурсии
         try {
-          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkMainRecursive && chkMainRecursive.checked)).catch(() => 0);
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkMainRecursive && chkMainRecursive.checked), 'zepb').catch(() => 0);
           if (statsZepb) statsZepb.textContent = String(pdfCount);
         } catch {}
       }
@@ -410,9 +410,9 @@ export function initMergeMode({
           lastSelectedInsertFolder: folder,
         });
 
-        // пересчёт количества PDF с учётом текущего флага рекурсии
+        // пересчёт количества PDF уведомлений с учётом текущего флага рекурсии
         try {
-          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkInsertRecursive && chkInsertRecursive.checked)).catch(() => 0);
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkInsertRecursive && chkInsertRecursive.checked), 'notification').catch(() => 0);
           if (statsNotif) statsNotif.textContent = String(pdfCount);
         } catch {}
       }
@@ -519,7 +519,7 @@ export function initMergeMode({
         updateSettings({ mainRecursive: chkMainRecursive.checked });
         const s = getSettings();
         if (s.mainFolder) {
-          const pdfCount = await electronAPI.countPdfFilesInFolder(s.mainFolder).catch(() => 0);
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.mainFolder, true, 'zepb').catch(() => 0);
           if (statsZepb) statsZepb.textContent = String(pdfCount);
         }
         await checkReady();
@@ -535,7 +535,7 @@ export function initMergeMode({
         updateSettings({ insertRecursive: chkInsertRecursive.checked });
         const s = getSettings();
         if (s.insertFolder) {
-          const pdfCount = await electronAPI.countPdfFilesInFolder(s.insertFolder).catch(() => 0);
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.insertFolder, true, 'notification').catch(() => 0);
           if (statsNotif) statsNotif.textContent = String(pdfCount);
         }
         await checkReady();

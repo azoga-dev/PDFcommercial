@@ -45,16 +45,38 @@ export function registerMergeIpc(getMainWindow: () => BrowserWindow | null) {
         const insertDict = await buildDict(
           insertFolder,
           !!recursiveInsert,
-          (full) => full.toLowerCase().endsWith('.pdf'),
+          (full, name) => {
+            // Проверяем, что файл является PDF
+            const isPdf = full.toLowerCase().endsWith('.pdf');
+            if (!isPdf) return false;
+            
+            // Исключаем файлы, которые являются ЗЭПБ (содержат признаки ЗЭПБ)
+            const lowerName = name.toLowerCase();
+            const hasZepbIndicator = /зэпб|зэсб|эпб|з\s*э\s*п\s*б|з[её]пб/i.test(lowerName);
+            
+            // Также проверяем, можно ли извлечь код уведомления из имени файла
+            const code = extractNotificationCode(name);
+            return !hasZepbIndicator && (code !== null);
+          },
           extractNotificationCode,
         );
 
         const zepbDict = await buildDict(
           mainFolder,
           !!recursiveMain,
-          (full, name) =>
-            full.toLowerCase().endsWith('.pdf') &&
-            name.toLowerCase().includes('зэпб'),
+          (full, name) => {
+            // Проверяем, что файл является PDF и содержит один из возможных признаков ЗЭПБ
+            const isPdf = full.toLowerCase().endsWith('.pdf');
+            if (!isPdf) return false;
+            
+            // Проверяем наличие признаков ЗЭПБ в имени файла
+            const lowerName = name.toLowerCase();
+            const hasZepbIndicator = /зэпб|зэсб|эпб|з\s*э\s*п\s*б|з[её]пб/i.test(lowerName);
+            
+            // Также проверяем, можно ли извлечь код ЗЭПБ из имени файла
+            const code = extractZepbCode(name);
+            return hasZepbIndicator || (code !== null);
+          },
           extractZepbCode,
         );
 
