@@ -1,0 +1,570 @@
+import { showPopup } from '../ui/popup';
+import type { MergeUiRefs } from '../../types/ui';
+
+type ElectronAPIMerge = Pick<
+  Window['electronAPI'],
+  | 'selectFolder'
+  | 'buildDict'
+  | 'countFilesInFolder'
+  | 'countPdfFilesInFolder'
+  | 'mergePDFs'
+  | 'cancelMerge'
+  | 'openFolder'
+  | 'onMergeProgress'
+  | 'onMergeUnmatched'
+  | 'onMergeComplete'
+>;
+
+export interface MergeSettingsSnapshot {
+  mainFolder: string;
+  insertFolder: string;
+  outputFolder: string;
+  mainRecursive: boolean;
+  insertRecursive: boolean;
+  lastSelectedMainFolder: string | null;
+  lastSelectedInsertFolder: string | null;
+  lastSelectedOutputFolder: string | null;
+  lastReportPath: string | null;
+}
+
+interface MergeModeDeps {
+  electronAPI: ElectronAPIMerge;
+  setBusy: (busy: boolean) => void;
+  log: (msg: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
+  getSettings: () => MergeSettingsSnapshot;
+  updateSettings: (patch: Partial<MergeSettingsSnapshot>) => void;
+  ui: MergeUiRefs;
+}
+
+/** API, который возвращает initMergeMode для внешней подписки (аналогично CompressModeApi). */
+export interface MergeModeApi {
+  onDicts: (cb: (dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void) => void;
+  clearMergeUi?: () => void;
+}
+
+interface UnmatchedItem {
+  type: 'notif' | 'zepb';
+  code: string;
+  file: string;
+  reason: string;
+}
+
+export function initMergeMode({
+  electronAPI,
+  setBusy,
+  log,
+  getSettings,
+  updateSettings,
+  ui,
+}: MergeModeDeps): MergeModeApi {
+  const {
+    btnMain,
+    btnInsert,
+    btnOutput,
+    btnRun,
+    btnOpenOutput,
+    labelMain,
+    labelInsert,
+    labelOutput,
+    chkMainRecursive,
+    chkInsertRecursive,
+    statsZepb,
+    statsNotif,
+    statsOutput,
+    statsStatus,
+    statsResults,
+    statsSuccess,
+    statsSkipped,
+    statsTotal,
+    progressBarFill,
+    unmatchedBlock,
+    unmatchedTableBody,
+    unmatchedSearch,
+    unmatchedFilter,
+    unmatchedExportBtn,
+    unmatchedClearBtn,
+    unmatchedCountBadge,
+    unmatchedEmpty,
+  } = ui;
+
+  let unmatchedItems: UnmatchedItem[] = [];
+
+  // Список подписчиков на обновление dicts
+  const dictListeners: Array<(dicts: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) => void> = [];
+  function emitDicts(payload: { zepbDict?: Record<string, string>; insertDict?: Record<string, string> }) {
+    for (const cb of dictListeners) {
+      try {
+        cb(payload);
+      } catch (e) {
+        console.error('emitDicts listener error', e);
+      }
+    }
+  }
+
+  const initFromSettings = () => {
+    const s = getSettings();
+
+    if (labelMain) {
+      labelMain.value = s.mainFolder || 'Не выбрана';
+      labelMain.style.color = s.mainFolder ? '' : '#6b7280';
+    }
+    if (labelInsert) {
+      labelInsert.value = s.insertFolder || 'Не выбрана';
+      labelInsert.style.color = s.insertFolder ? '' : '#6b7280';
+    }
+    if (labelOutput) {
+      labelOutput.value = s.outputFolder || 'Не выбрана';
+      labelOutput.style.color = s.outputFolder ? '' : '#6b7280';
+    }
+
+    if (chkMainRecursive) chkMainRecursive.checked = s.mainRecursive;
+    if (chkInsertRecursive) chkInsertRecursive.checked = s.insertRecursive;
+
+    if (btnOpenOutput) btnOpenOutput.disabled = !s.outputFolder;
+  };
+
+  initFromSettings();
+
+  function updateFolderLabel(el: HTMLInputElement | null, folder: string | null) {
+    if (!el) return;
+    el.value = folder || 'Не выбрана';
+    el.style.color = folder ? '' : '#6b7280';
+  }
+
+  function updateStats() {
+    const s = getSettings();
+    if (s.outputFolder && statsOutput) {
+      electronAPI
+        .countFilesInFolder(s.outputFolder)
+        .then((c) => (statsOutput.textContent = c.toString()))
+        .catch(() => (statsOutput.textContent = '?'));
+    } else if (statsOutput) {
+      statsOutput.textContent = '0';
+    }
+  }
+
+  /**
+   * Асинхронная проверка готовности к объединению:
+   * - требуется, чтобы были выбраны все три папки;
+   * - и чтобы в папках main и insert было хотя бы по одному PDF-файлу.
+   * При отсутствии PDF — показываем подсказку и блокируем кнопку.
+   */
+  async function checkReady() {
+    try {
+      const s = getSettings();
+      if (!s.mainFolder || !s.insertFolder || !s.outputFolder) {
+        if (btnRun) btnRun.disabled = true;
+        if (statsStatus) {
+          statsStatus.textContent = 'Выберите все папки';
+          statsStatus.className = 'status-not-ready';
+        }
+        return;
+      }
+
+      // теперь передаём флаги рекурсии и тип файла в countPdfFilesInFolder
+      const [mainCount, insertCount] = await Promise.all([
+        electronAPI.countPdfFilesInFolder(s.mainFolder, !!s.mainRecursive, 'zepb').catch(() => 0),
+        electronAPI.countPdfFilesInFolder(s.insertFolder, !!s.insertRecursive, 'notification').catch(() => 0),
+      ]);
+
+      if (mainCount <= 0 || insertCount <= 0) {
+        if (btnRun) btnRun.disabled = true;
+        if (statsStatus) {
+          statsStatus.textContent = 'В выбранных папках нет PDF‑файлов';
+          statsStatus.className = 'status-not-ready';
+        }
+      } else {
+        if (btnRun) btnRun.disabled = false;
+        if (statsStatus) {
+          statsStatus.textContent = 'Готово к объединению';
+          statsStatus.className = 'status-ready';
+        }
+      }
+
+      if (statsZepb) statsZepb.textContent = String(mainCount);
+      if (statsNotif) statsNotif.textContent = String(insertCount);
+    } catch (e) {
+      console.error('[mergeMode] checkReady error', e);
+      if (btnRun) btnRun.disabled = true;
+      if (statsStatus) {
+        statsStatus.textContent = 'Проверка готовности не удалась';
+        statsStatus.className = 'status-not-ready';
+      }
+    }
+  }
+
+  function renderUnmatched() {
+    if (!unmatchedTableBody || !unmatchedBlock) return;
+    unmatchedTableBody.innerHTML = '';
+    const typeFilter = unmatchedFilter?.value || 'all';
+    const term = (unmatchedSearch?.value || '').trim().toLowerCase();
+
+    const filtered = unmatchedItems.filter((it) => {
+      if (typeFilter !== 'all' && it.type !== typeFilter) return false;
+      if (term) {
+        const hay = `${it.code} ${it.file}`.toLowerCase();
+        return hay.includes(term);
+      }
+      return true;
+    });
+
+    for (const it of filtered) {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid rgba(0,0,0,0.04)';
+
+      const tdType = document.createElement('td');
+      tdType.textContent = it.type === 'notif' ? 'Увед.' : 'ЗЭПБ';
+      tdType.style.padding = '8px 10px';
+      tdType.style.width = '80px';
+      tdType.style.fontWeight = '600';
+
+      const tdCode = document.createElement('td');
+      tdCode.textContent = it.code;
+      tdCode.style.padding = '8px 10px';
+      tdCode.style.width = '140px';
+
+      const tdFile = document.createElement('td');
+      tdFile.textContent = it.file;
+      tdFile.style.padding = '8px 10px';
+      tdFile.style.wordBreak = 'break-all';
+
+      const tdReason = document.createElement('td');
+      tdReason.textContent = it.reason;
+      tdReason.style.padding = '8px 10px';
+      tdReason.style.width = '160px';
+
+      tr.appendChild(tdType);
+      tr.appendChild(tdCode);
+      tr.appendChild(tdFile);
+      tr.appendChild(tdReason);
+      unmatchedTableBody.appendChild(tr);
+    }
+
+    const total = unmatchedItems.length;
+    if (unmatchedCountBadge) {
+      unmatchedCountBadge.textContent = String(total);
+      unmatchedCountBadge.style.display = total ? 'inline-block' : 'none';
+    }
+    if (unmatchedEmpty) unmatchedEmpty.style.display = total === 0 ? 'block' : 'none';
+    if (unmatchedExportBtn) unmatchedExportBtn.disabled = total === 0;
+    if (unmatchedClearBtn) unmatchedClearBtn.disabled = total === 0;
+    unmatchedBlock.style.display = total === 0 ? 'none' : 'block';
+  }
+
+  unmatchedSearch?.addEventListener('input', renderUnmatched);
+  unmatchedFilter?.addEventListener('change', renderUnmatched);
+  unmatchedClearBtn?.addEventListener('click', () => {
+    unmatchedItems = [];
+    renderUnmatched();
+    if (unmatchedBlock) unmatchedBlock.style.display = 'none';
+  });
+
+  unmatchedExportBtn?.addEventListener('click', () => {
+    if (!unmatchedItems.length) return;
+    const lines = unmatchedItems.map((it) => `${it.type};${it.code};${it.file};${it.reason}`);
+    const content = ['type;code;file;reason', ...lines].join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unmatched_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+
+  electronAPI.onMergeUnmatched?.((_, payload: any) => {
+    try {
+      const { unmatchedNotifications = [], unmatchedZepb = [] } = payload || {};
+      unmatchedItems = [];
+      for (const n of unmatchedNotifications) {
+        unmatchedItems.push({ type: 'notif', code: n.code, file: n.file, reason: 'Нет ЗЭПБ' });
+      }
+      for (const z of unmatchedZepb) {
+        unmatchedItems.push({ type: 'zepb', code: z.code, file: z.file, reason: 'Нет уведомления' });
+      }
+      renderUnmatched();
+    } catch (err) {
+      console.error('onMergeUnmatched handler error', err);
+    }
+  });
+
+  electronAPI.onMergeProgress((_, payload: any) => {
+    const { processed, skipped, total, message } = payload;
+    if (progressBarFill) progressBarFill.style.width = total > 0 ? `${Math.round(((processed + skipped) / total) * 100)}%` : '0%';
+    if (message) {
+      if (message.includes('Объединено') || message.includes('Сшито')) log(message, 'success');
+      else if (message.includes('Не найден') || message.includes('Пропущен')) log(message, 'warning');
+      else if (message.includes('Ошибка')) log(message, 'error');
+      else log(message, 'info');
+    }
+    if (statsSuccess) statsSuccess.textContent = processed.toString();
+    if (statsSkipped) statsSkipped.textContent = skipped.toString();
+    if (statsTotal) statsTotal.textContent = total.toString();
+    if (statsResults) statsResults.style.display = 'flex';
+    updateStats();
+  });
+
+  electronAPI.onMergeComplete((_, payload: any) => {
+    try {
+      const { processed, skipped, total, errors, log: logs, registry, canceled } = payload as any;
+
+      log('\n=== Обработка завершена ===', 'info');
+      log(`Успешно: ${processed}`, 'info');
+      log(`Пропущено: ${skipped}`, 'info');
+      log(`Всего: ${total}`, 'info');
+
+      if (Array.isArray(logs)) {
+        logs.forEach((m: string) =>
+          log(m, m.includes('Ошибка') ? 'error' : m.includes('Объединено') ? 'success' : 'info'),
+        );
+      }
+
+      if (registry) {
+        updateSettings({ lastReportPath: registry });
+        log(`Реестр сформирован: ${registry}`, 'info');
+      }
+
+      if (canceled) {
+        log('Операция была отменена пользователем', 'warning');
+        showPopup('Объединение отменено пользователем', 8000);
+      } else if (errors && errors.length) {
+        log(`Ошибки: ${errors.length}`, 'error');
+        showPopup(`Объединение завершено с ошибками (${errors.length}). Проверьте лог.`, 12000);
+      } else {
+        showPopup('Объединение завершено успешно.', 8000);
+      }
+
+      if (statsSuccess) statsSuccess.textContent = processed.toString();
+      if (statsSkipped) statsSkipped.textContent = skipped.toString();
+      if (statsTotal) statsTotal.textContent = total.toString();
+      if (statsResults) statsResults.style.display = 'flex';
+      updateStats();
+    } catch (err) {
+      console.error('onMergeComplete handler error', err);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  const selectFolder = (last: string | null) => electronAPI.selectFolder(last ?? undefined);
+
+  btnMain.addEventListener('click', async () => {
+    const orig = btnMain.innerHTML;
+    btnMain.innerHTML = '<i data-lucide="loader" class="loader"></i> Сканирование...';
+    btnMain.disabled = true;
+    try {
+      const s0 = getSettings();
+      const folder = await selectFolder(s0.lastSelectedMainFolder);
+      if (folder) {
+        updateFolderLabel(labelMain, folder);
+
+        try {
+          const dict = await electronAPI.buildDict('zepb', folder, chkMainRecursive.checked);
+          if (statsZepb) statsZepb.textContent = String(Object.keys(dict || {}).length);
+          emitDicts({ zepbDict: dict });
+        } catch {
+          if (statsZepb) statsZepb.textContent = '0';
+          emitDicts({ zepbDict: {} });
+        }
+
+        updateSettings({
+          mainFolder: folder,
+          lastSelectedMainFolder: folder,
+        });
+
+        // пересчёт количества PDF ЗЭПБ с учётом текущего флага рекурсии
+        try {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkMainRecursive && chkMainRecursive.checked), 'zepb').catch(() => 0);
+          if (statsZepb) statsZepb.textContent = String(pdfCount);
+        } catch {}
+      }
+      updateStats();
+      await checkReady();
+    } finally {
+      btnMain.innerHTML = orig;
+      btnMain.disabled = false;
+    }
+  });
+
+  btnInsert.addEventListener('click', async () => {
+    const orig = btnInsert.innerHTML;
+    btnInsert.innerHTML = '<i data-lucide="loader" class="loader"></i> Сканирование...';
+    btnInsert.disabled = true;
+    try {
+      const s0 = getSettings();
+      const folder = await selectFolder(s0.lastSelectedInsertFolder);
+      if (folder) {
+        updateFolderLabel(labelInsert, folder);
+
+        try {
+          const dict = await electronAPI.buildDict('insert', folder, chkInsertRecursive.checked);
+          if (statsNotif) statsNotif.textContent = String(Object.keys(dict || {}).length);
+          emitDicts({ insertDict: dict });
+        } catch {
+          if (statsNotif) statsNotif.textContent = '0';
+          emitDicts({ insertDict: {} });
+        }
+
+        updateSettings({
+          insertFolder: folder,
+          lastSelectedInsertFolder: folder,
+        });
+
+        // пересчёт количества PDF уведомлений с учётом текущего флага рекурсии
+        try {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(folder, !!(chkInsertRecursive && chkInsertRecursive.checked), 'notification').catch(() => 0);
+          if (statsNotif) statsNotif.textContent = String(pdfCount);
+        } catch {}
+      }
+      updateStats();
+      await checkReady();
+    } finally {
+      btnInsert.innerHTML = orig;
+      btnInsert.disabled = false;
+    }
+  });
+
+  btnOutput.addEventListener('click', async () => {
+    const s0 = getSettings();
+    const folder = await selectFolder(s0.lastSelectedOutputFolder);
+    if (folder) {
+      updateFolderLabel(labelOutput, folder);
+      if (btnOpenOutput) btnOpenOutput.disabled = false;
+      updateSettings({
+        outputFolder: folder,
+        lastSelectedOutputFolder: folder,
+      });
+      updateStats();
+      await checkReady();
+    }
+  });
+
+  if (btnOpenOutput) {
+    btnOpenOutput.addEventListener('click', async () => {
+      const s = getSettings();
+      if (!s.outputFolder) {
+        showPopup('Папка результатов не выбрана');
+        return;
+      }
+      const ok = await electronAPI.openFolder(s.outputFolder);
+      if (!ok) alert(`Не удалось открыть папку:\n${s.outputFolder}`);
+    });
+  }
+
+  btnRun.addEventListener('click', async () => {
+    await checkReady();
+    if (btnRun && btnRun.disabled) {
+      showPopup('Для запуска объединения в папках должны быть PDF‑файлы.', 6000);
+      return;
+    }
+
+    const s0 = getSettings();
+    if (!s0.mainFolder || !s0.insertFolder || !s0.outputFolder) {
+      log('Не все папки выбраны', 'error');
+      return;
+    }
+    log('Начало объединения', 'info');
+    setBusy(true);
+    const logArea = document.getElementById('log') as HTMLTextAreaElement | null;
+    if (logArea) logArea.value = '';
+    try {
+      const result = await electronAPI.mergePDFs({
+        mainFolder: s0.mainFolder,
+        insertFolder: s0.insertFolder,
+        outputFolder: s0.outputFolder,
+        recursiveMain: chkMainRecursive.checked,
+        recursiveInsert: chkInsertRecursive.checked,
+      });
+      if (result && Array.isArray(result.log)) {
+        result.log.forEach((m: string) =>
+          log(m, m.includes('Ошибка') ? 'error' : m.includes('Объединено') ? 'success' : 'info'),
+        );
+      }
+      if (statsSuccess) statsSuccess.textContent = (result.processed || 0).toString();
+      if (statsSkipped) statsSkipped.textContent = (result.skipped || 0).toString();
+      if (statsTotal) statsTotal.textContent = (result.total || 0).toString();
+      if (statsResults) statsResults.style.display = 'flex';
+      updateStats();
+    } catch (err) {
+      log(`Ошибка выполнения: ${(err as Error).message}`, 'error');
+      showPopup(`Ошибка: ${(err as Error).message}`, 10000);
+    } finally {
+      // setBusy(false) — в onMergeComplete
+    }
+  });
+
+  const cancelBtn = document.getElementById('btn-cancel-op') as HTMLButtonElement | null;
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      btn.disabled = true;
+      try {
+        await electronAPI.cancelMerge();
+        log('Запрошена отмена объединения', 'warning');
+        showPopup('Запрос отправлен', 4000);
+      } catch {
+        showPopup('Ошибка отправки запроса отмены', 6000);
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+        }, 1500);
+      }
+    });
+  }
+
+  // Обработчики изменения чекбоксов рекурсии: сохраняем флаг и пересчитываем PDF в соответствующей папке
+  if (chkMainRecursive) {
+    chkMainRecursive.addEventListener('change', async () => {
+      try {
+        updateSettings({ mainRecursive: chkMainRecursive.checked });
+        const s = getSettings();
+        if (s.mainFolder) {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.mainFolder, true, 'zepb').catch(() => 0);
+          if (statsZepb) statsZepb.textContent = String(pdfCount);
+        }
+        await checkReady();
+      } catch (e) {
+        console.error('[mergeMode] chkMainRecursive change handler error', e);
+      }
+    });
+  }
+
+  if (chkInsertRecursive) {
+    chkInsertRecursive.addEventListener('change', async () => {
+      try {
+        updateSettings({ insertRecursive: chkInsertRecursive.checked });
+        const s = getSettings();
+        if (s.insertFolder) {
+          const pdfCount = await electronAPI.countPdfFilesInFolder(s.insertFolder, true, 'notification').catch(() => 0);
+          if (statsNotif) statsNotif.textContent = String(pdfCount);
+        }
+        await checkReady();
+      } catch (e) {
+        console.error('[mergeMode] chkInsertRecursive change handler error', e);
+      }
+    });
+  }
+
+  // начальная проверка готовности и статистики
+  checkReady().catch(() => {});
+  updateStats();
+
+  /** Очистка только UI merge (используется в общей кнопке сброса). */
+  function clearMergeUi() {
+    updateFolderLabel(labelMain, null);
+    updateFolderLabel(labelInsert, null);
+    updateFolderLabel(labelOutput, null);
+    unmatchedItems = [];
+    renderUnmatched();
+    if (statsOutput) statsOutput.textContent = '0';
+    if (statsResults) statsResults.style.display = 'none';
+    if (progressBarFill) progressBarFill.style.width = '0%';
+  }
+
+  return {
+    onDicts: (cb) => {
+      dictListeners.push(cb);
+    },
+    clearMergeUi,
+  };
+}

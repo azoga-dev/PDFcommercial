@@ -14,7 +14,7 @@ import { SettingsState } from '../state/settingsState';
 import { MergeState } from '../state/mergeState';
 import { CompressState } from '../state/compressState';
 import { LogState } from '../state/logState';
-import type { MainUiRefs } from '../../types/ui';
+import type { MainUiRefs } from '@pdfmanager/types/src/ui';
 
 type ElectronAPI = Window['electronAPI'];
 

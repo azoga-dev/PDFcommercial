@@ -2,7 +2,7 @@
 // Теперь окно логов использует такой же подход, как main-окно: централизованный
 // доступ к DOM-элементам через getLogWindowUiRefs().
 
-import { getLogWindowUiRefs } from './types/ui';
+import { getLogWindowUiRefs } from '@pdfmanager/types/src/ui';
 
 (() => {
   type ElectronAPILogWindow = Pick<

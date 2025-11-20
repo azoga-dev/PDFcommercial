@@ -1,0 +1,14 @@
+{
+  "name": "@pdfmanager/utils",
+  "version": "1.0.0",
+  "description": "Utility functions for PDFmanager application",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["pdfmanager", "utils"],
+  "author": "azoga99",
+  "license": "MIT"
+}

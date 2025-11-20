@@ -2,18 +2,21 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "commonjs",
-    "rootDir": "./src",
+    "rootDir": "./packages/core/src",
     "outDir": "./dist"
   },
   "include": [
-    "src/main/main.ts",
-    "src/main/**/*.ts",
-    "src/preload.ts",
-    "src/types/**/*.d.ts"
+    "packages/core/src/main/main.ts",
+    "packages/core/src/main/**/*.ts",
+    "packages/core/src/preload/**/*.ts",
+    "packages/types/src/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
+    "packages/ui/**/*",
+    "packages/utils/**/*",
+    "packages/services/**/*",
     "src/renderer/**/*",
     "src/logWindowRenderer.ts"
   ]
