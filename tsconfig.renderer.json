@@ -3,20 +3,21 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "rootDir": "./src",
+    "rootDir": "./packages/core/src",
     "outDir": "./dist/renderer",
     "jsx": "preserve" // на будущее, если вдруг появится JSX, сейчас не мешает
   },
   "include": [
-    "src/renderer/**/*",
-    "src/logWindowRenderer.ts",
-    "src/types/**/*.d.ts"
+    "packages/core/src/renderer/**/*",
+    "packages/core/src/main/windows/**/*",
+    "packages/ui/src/**/*",
+    "packages/types/src/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "src/main.ts",
-    "src/main/**/*",
-    "src/preload.ts"
+    "packages/core/src/main/main.ts",
+    "packages/core/src/main/ipc/**/*",
+    "packages/core/src/preload.ts"
   ]
 }

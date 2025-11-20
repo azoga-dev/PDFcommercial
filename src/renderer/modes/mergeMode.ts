@@ -1,5 +1,5 @@
 import { showPopup } from '../ui/popup';
-import type { MergeUiRefs } from '../../types/ui';
+import type { MergeUiRefs } from '@pdfmanager/types/src/ui';
 
 type ElectronAPIMerge = Pick<
   Window['electronAPI'],

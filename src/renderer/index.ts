@@ -1,7 +1,7 @@
 // Тонкий entry-point — только собирает UI-рефы, вызывает контроллер приложения
 // и регистрирует модалку подтверждения (модалке передаём простую callback,
 // которая не знает ничего о внутренностях приложения — она просто эмитит событие).
-import { getMainUiRefs } from '../types/ui';
+import { getMainUiRefs } from '@pdfmanager/types/src/ui';
 import { initConfirmClearModal } from './ui/confirmClear';
 import { eventBus } from './app/eventBus';
 import { initApp } from './app/appController';

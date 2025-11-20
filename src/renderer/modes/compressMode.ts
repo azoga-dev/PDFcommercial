@@ -1,5 +1,5 @@
 import { showPopup } from '../ui/popup';
-import type { CompressUiRefs } from '../../types/ui';
+import type { CompressUiRefs } from '@pdfmanager/types/src/ui';
 
 type ElectronAPICompress = Pick<
   Window['electronAPI'],

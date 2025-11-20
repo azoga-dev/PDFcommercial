@@ -1,0 +1,14 @@
+{
+  "name": "@pdfmanager/types",
+  "version": "1.0.0",
+  "description": "Type definitions for PDFmanager application",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["pdfmanager", "types"],
+  "author": "azoga99",
+  "license": "MIT"
+}
