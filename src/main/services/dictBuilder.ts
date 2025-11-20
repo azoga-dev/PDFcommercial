@@ -106,6 +106,9 @@ export async function buildDict(
       }
 
       if (!it.isFile()) continue;
+      
+      // Проверяем, что файл является PDF перед применением фильтра
+      if (!it.name.toLowerCase().endsWith('.pdf')) continue;
       if (!fileFilter(full, it.name)) continue;
 
       // если файл помечен как уже обработанный — пропускаем и логируем

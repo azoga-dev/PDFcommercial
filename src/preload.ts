@@ -35,9 +35,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** Подсчитать количество PDF-файлов в папке (рекурсивно по умолчанию).
    *  Можно передать второй аргумент recursive=false для нерекурсивного подсчёта.
+   *  Третий аргумент type определяет тип файлов: 'zepb', 'notification' или 'all'.
    */
-  countPdfFilesInFolder: (folderPath: string, recursive = true) =>
-    ipcRenderer.invoke('count-pdf-files-in-folder', folderPath, recursive),
+  countPdfFilesInFolder: (folderPath: string, recursive = true, type: 'zepb' | 'notification' | 'all' = 'all') =>
+    ipcRenderer.invoke('count-pdf-files-in-folder', folderPath, recursive, type),
 
   /** Открыть папку в системном файловом менеджере. */
   openFolder: (folderPath: string) =>

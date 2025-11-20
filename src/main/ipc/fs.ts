@@ -3,6 +3,7 @@ import * as path from 'path';
 import { promises as fsp } from 'fs';
 import fsExtra from 'fs-extra';
 import { buildDict, extractNotificationCode, extractZepbCode } from '../services/dictBuilder';
+import { countZepbPdfFiles, countNotificationPdfFiles } from '../services/fileCounter';
 
 export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
   // Диалог выбора папки
@@ -53,16 +54,38 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
           return await buildDict(
             folderPath,
             recursive,
-            (f, n) =>
-              f.toLowerCase().endsWith('.pdf') &&
-              n.toLowerCase().includes('зэпб'),
+            (f, n) => {
+              // Проверяем, что файл является PDF и содержит один из возможных признаков ЗЭПБ
+              const isPdf = f.toLowerCase().endsWith('.pdf');
+              if (!isPdf) return false;
+              
+              // Проверяем наличие признаков ЗЭПБ в имени файла
+              const lowerName = n.toLowerCase();
+              const hasZepbIndicator = /зэпб|зэсб|эпб|з\s*э\s*п\s*б|з[её]пб/i.test(lowerName);
+              
+              // Также проверяем, можно ли извлечь код ЗЭПБ из имени файла
+              const code = extractZepbCode(n);
+              return hasZepbIndicator || (code !== null);
+            },
             extractZepbCode,
           );
         }
         return await buildDict(
           folderPath,
           recursive,
-          (f) => f.toLowerCase().endsWith('.pdf'),
+          (f, n) => {
+            // Проверяем, что файл является PDF
+            const isPdf = f.toLowerCase().endsWith('.pdf');
+            if (!isPdf) return false;
+            
+            // Исключаем файлы, которые являются ЗЭПБ (содержат признаки ЗЭПБ)
+            const lowerName = n.toLowerCase();
+            const hasZepbIndicator = /зэпб|зэсб|эпб|з\s*э\s*п\s*б|з[её]пб/i.test(lowerName);
+            
+            // Также проверяем, можно ли извлечь код уведомления из имени файла
+            const code = extractNotificationCode(n);
+            return !hasZepbIndicator && (code !== null);
+          },
           extractNotificationCode,
         );
       } catch {
@@ -102,38 +125,45 @@ export function registerFsIpc(getMainWindow: () => BrowserWindow | null) {
   // чтобы UI мог запрашивать как рекурсивный, так и нерекурсивный подсчёт.
   ipcMain.handle(
     'count-pdf-files-in-folder',
-    async (_e, folderPath: string, recursive = true) => {
+    async (_e, folderPath: string, recursive = true, type: 'zepb' | 'notification' | 'all' = 'all') => {
       if (!folderPath) return 0;
       try {
         const st = await fsp.stat(folderPath).catch(() => null);
         if (!st || !st.isDirectory()) return 0;
 
-        if (!recursive) {
-          // Нерекурсивный подсчёт: только файлы в указанной папке
-          const entries = await fsp.readdir(folderPath, { withFileTypes: true });
-          return entries.filter((ent) => ent.isFile() && ent.name.toLowerCase().endsWith('.pdf')).length;
-        }
-
-        // Рекурсивный подсчёт
-        const countPdf = async (dir: string): Promise<number> => {
-          let total = 0;
-          try {
-            const entries = await fsp.readdir(dir, { withFileTypes: true });
-            for (const ent of entries) {
-              const full = path.join(dir, ent.name);
-              if (ent.isFile()) {
-                if (ent.name.toLowerCase().endsWith('.pdf')) total++;
-              } else if (ent.isDirectory()) {
-                total += await countPdf(full);
-              }
-            }
-          } catch {
-            return 0;
+        if (type === 'zepb') {
+          return await countZepbPdfFiles(folderPath, recursive);
+        } else if (type === 'notification') {
+          return await countNotificationPdfFiles(folderPath, recursive);
+        } else {
+          // Подсчет всех PDF-файлов (для обратной совместимости)
+          if (!recursive) {
+            // Нерекурсивный подсчёт: только файлы в указанной папке
+            const entries = await fsp.readdir(folderPath, { withFileTypes: true });
+            return entries.filter((ent) => ent.isFile() && ent.name.toLowerCase().endsWith('.pdf')).length;
           }
-          return total;
-        };
 
-        return await countPdf(folderPath);
+          // Рекурсивный подсчёт
+          const countPdf = async (dir: string): Promise<number> => {
+            let total = 0;
+            try {
+              const entries = await fsp.readdir(dir, { withFileTypes: true });
+              for (const ent of entries) {
+                const full = path.join(dir, ent.name);
+                if (ent.isFile()) {
+                  if (ent.name.toLowerCase().endsWith('.pdf')) total++;
+                } else if (ent.isDirectory()) {
+                  total += await countPdf(full);
+                }
+              }
+            } catch {
+              return 0;
+            }
+            return total;
+          };
+
+          return await countPdf(folderPath);
+        }
       } catch {
         return 0;
       }
